@@ -29,5 +29,7 @@
 - 核心服务、模拟 HTTP、原生 UI 交互测试及 Go/MyGo 静态检查通过；测试不修改真实 Steam 库或凭据。
 - 本机只读发现 1 个已安装 Epic 游戏，最近账号当时无非 Steam 条目。已检查示例 UI 渲染和实际 EXE 主窗口创建/正常关闭。
 - 按用户要求已移除 smoke 脚本及任务，不再维护隐藏窗口启动检查。
-- 真实 Steam 导入并启动游戏、有效 API Key 下的在线封面下载仍需实际使用验收；未执行这些真实库写操作。
+- 新增独立桥接实验：cmd/epic-bridge 与 internal/bridge 共用现有 Go module；mise bridge-build 单独构建控制台 EXE，尚未接入客户端。通过 SysProcAttr.ParentProcess 将 Epic 启动请求进程的父进程设为当前桌面 Shell，清除继承的 Steam 环境变量；失败不回退普通子进程启动。原生辅助进程测试已验证父 PID、路径、创建时间与环境清理。
+- 桥接默认跟踪游戏安装目录内与清单同名的 EXE（覆盖霍格沃茨入口与 Phoenix 程序交接），可用 --watch-exe 指定实际路径；启动等待五分钟、退出宽限五秒，不关闭 Epic/游戏、不读取认证参数。日志在 AppData/game-to-steam/bridge/logs；详见 docs/bridge-experiment.md。
+- 用户授权后已备份并新增真实 Steam 的独立霍格沃茨桥接测试快捷方式，保留原条目；用户确认测试成功，测试前相关程序已退出。Shift+Tab 可打开好友窗口和聊天，但没有通常的半透明黑底遮罩；用户认为不影响使用，只确认 Overlay 部分可用。Epic 已预先独立运行的场景及 Steam Input 仍待测试，不能泛化为完整兼容或所有游戏已验收。用户此前也确认在线封面下载正常；有效 API Key 的真实请求由用户验收。
 - 不自行提交或推送；源码和记忆随用户后续正常 Git 流程处理。

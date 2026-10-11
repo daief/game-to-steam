@@ -41,6 +41,10 @@
 
 网络设置失败时会显示具体错误。指定地址格式不正确时不能保存；自动代理解析失败会报错，不默默改为直连。Windows 自动发现没有找到 WPAD 服务时使用其手动代理设置。
 
+## Epic 桥接实验
+
+`mise run bridge-build` 单独生成 `build/windows-amd64/epic-bridge.exe`。它尝试隔离 Epic 的启动进程，并跟踪实际游戏退出，以解决 Epic 常驻导致 Steam 一直显示游戏中的问题。尚未接入客户端或自动迁移快捷方式；Steam 状态及 Overlay/Steam Input 需要实机验收，见[实验说明](docs/bridge-experiment.md)。
+
 ## 开发与构建
 
 安装 Go **1.27.1 或以上**，项目已固定 MyGo 0.4.1 及依赖版本。

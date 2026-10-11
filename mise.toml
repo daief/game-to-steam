@@ -15,6 +15,11 @@ run = 'go build -mod=readonly -trimpath -ldflags="-s -w -H=windowsgui" -o build/
 description = "运行核心服务和原生 UI 测试"
 run = "go test ./..."
 
+[tasks.bridge-build]
+description = "构建独立 Epic 桥接实验程序（不修改 Steam 快捷方式）"
+env = { GOOS = "windows", GOARCH = "amd64" }
+run = 'go build -mod=readonly -trimpath -o build/windows-amd64/epic-bridge.exe ./cmd/epic-bridge'
+
 [tasks.check]
 description = "运行 Go 静态检查和 MyGo UI 生命周期检查"
 run = ["go vet ./...", "go tool mygo vet"]
