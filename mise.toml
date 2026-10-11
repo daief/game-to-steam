@@ -1,0 +1,25 @@
+# Project-scoped Go module proxy; does not change `go env -w` settings.
+[env]
+GOPROXY = "https://goproxy.cn,direct"
+
+[tasks.dev]
+description = "启动 MyGo 原生开发窗口，修改 Go 文件后自动重建"
+run = "go tool mygo dev"
+
+[tasks.build]
+description = "构建 Windows amd64 便携 EXE"
+env = { GOOS = "windows", GOARCH = "amd64" }
+run = 'go build -mod=readonly -trimpath -ldflags="-s -w -H=windowsgui" -o build/windows-amd64/game-to-steam.exe .'
+
+[tasks.test]
+description = "运行核心服务和原生 UI 测试"
+run = "go test ./..."
+
+[tasks.check]
+description = "运行 Go 静态检查和 MyGo UI 生命周期检查"
+run = ["go vet ./...", "go tool mygo vet"]
+
+[tasks.preview]
+description = "使用示例数据渲染界面预览到 build/ui-preview.png"
+env = { GAME_TO_STEAM_PREVIEW_DIR = "build" }
+run = "go test -count=1 -run TestPreviewArtifact -v ."

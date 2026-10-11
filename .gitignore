@@ -1,0 +1,15 @@
+tmp/
+.mygo/
+build/
+dist/
+*.exe
+*.test
+coverage.out
+*.log
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
