@@ -4,7 +4,7 @@
 
 - Windows amd64 客户端，MyGo 0.4.1 纯 Go 原生 UI；中文列表界面，跟随系统主题，无 Web 前端。
 - 只扫描 Epic 官方启动器本机已安装游戏，不接入 Epic 账号游戏库；不复用 Epic 图片资源。
-- 启动策略参考 BoilR：managed、非空 DLC 映射或强制选项走 Epic 启动器 URI，否则运行游戏 EXE。保留 LaunchCommand，更新策略前重新解析清单以支持安装移动。
+- 启动策略：managed、非空 DLC 映射、bRequiresAuth、OwnershipToken（布尔值或字符串 true）或强制选项走 Epic 启动器 URI，否则运行游戏 EXE。bCanRunOffline 不覆盖认证要求；本机霍格沃茨清单 managed=false 但需认证与所有权令牌，不能仅沿用 BoilR 的 managed/DLC 判断。保留 LaunchCommand，更新策略前重新解析清单以支持安装移动；不自动覆盖已导入的自定义命令。
 - 只修改最近使用的 Steam 账号，不提供账号切换。写入前要求用户手动退出 Steam，不自动关闭或重启。
 - 全部非 Steam 快捷方式可查看、批量删除；删除确认框默认勾选清理对应 Steam 图片，可手动取消，不删除游戏本体或源图片。
 - 重复游戏需确认接管。接管保留 AppID、原配置及图片；保存启动设置时才更新启动字段。

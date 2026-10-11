@@ -20,6 +20,18 @@ type manifest struct {
 	BIsIncompleteInstall                                          bool  `json:"bIsIncompleteInstall"`
 	BIsApplication                                                *bool `json:"bIsApplication"`
 	ExpectingDLCInstalled                                         map[string]bool
+	BRequiresAuth                                                 bool `json:"bRequiresAuth"`
+	OwnershipToken                                                json.RawMessage
+}
+
+// Epic manifests may encode the ownership-token requirement as a string or bool.
+func requiresOwnershipToken(raw json.RawMessage) bool {
+	var flag bool
+	if json.Unmarshal(raw, &flag) == nil {
+		return flag
+	}
+	var value string
+	return json.Unmarshal(raw, &value) == nil && strings.EqualFold(strings.TrimSpace(value), "true")
 }
 
 func DefaultManifestPath() string {
@@ -63,7 +75,8 @@ func Scan(dir string) ([]model.Game, []string, error) {
 			warnings = append(warnings, m.DisplayName+": 安装目录不存在")
 			continue
 		}
-		if m.LaunchExecutable == "" && !m.BIsManaged {
+		needsEpic := m.BIsManaged || len(m.ExpectingDLCInstalled) > 0 || m.BRequiresAuth || requiresOwnershipToken(m.OwnershipToken)
+		if m.LaunchExecutable == "" && !needsEpic {
 			continue
 		}
 		exe := ""
@@ -81,7 +94,7 @@ func Scan(dir string) ([]model.Game, []string, error) {
 			continue
 		}
 		seen[id] = true
-		games = append(games, model.Game{ID: id, Name: m.DisplayName, InstallDir: m.InstallLocation, Executable: exe, LaunchCommand: m.LaunchCommand, Namespace: m.CatalogNamespace, CatalogID: m.CatalogItemId, AppName: m.AppName, Managed: m.BIsManaged, HasDLC: len(m.ExpectingDLCInstalled) > 0})
+		games = append(games, model.Game{ID: id, Name: m.DisplayName, InstallDir: m.InstallLocation, Executable: exe, LaunchCommand: m.LaunchCommand, Namespace: m.CatalogNamespace, CatalogID: m.CatalogItemId, AppName: m.AppName, Managed: m.BIsManaged, HasDLC: len(m.ExpectingDLCInstalled) > 0, RequiresAuth: m.BRequiresAuth, RequiresOwnershipToken: requiresOwnershipToken(m.OwnershipToken)})
 	}
 	sort.Slice(games, func(i, j int) bool { return strings.ToLower(games[i].Name) < strings.ToLower(games[j].Name) })
 	return games, warnings, nil

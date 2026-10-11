@@ -44,11 +44,13 @@ func TestLaunchModesAndUnicodePaths(t *testing.T) {
 	_ = os.WriteFile(exe, nil, 0600)
 	_ = os.WriteFile(launcher, nil, 0600)
 	base := model.Game{ID: "ns:item:app", Name: "游戏", InstallDir: dir, Executable: exe, LaunchCommand: "-flag"}
-	for _, mode := range []string{"direct", "managed", "dlc", "forced"} {
+	for _, mode := range []string{"direct", "managed", "dlc", "auth", "ownership", "forced"} {
 		g := base
 		g.Managed = mode == "managed"
 		g.HasDLC = mode == "dlc"
 		g.ForceEpic = mode == "forced"
+		g.RequiresAuth = mode == "auth"
+		g.RequiresOwnershipToken = mode == "ownership"
 		sc, err := MakeShortcut(g, launcher)
 		if err != nil {
 			t.Fatal(err)
@@ -64,5 +66,37 @@ func TestLaunchModesAndUnicodePaths(t *testing.T) {
 	base.ForceEpic = true
 	if _, err := MakeShortcut(base, filepath.Join(dir, "missing.exe")); err == nil {
 		t.Fatal("accepted missing launcher")
+	}
+}
+
+func TestScanAuthenticationRequirements(t *testing.T) {
+	for _, tc := range []struct {
+		name, fields string
+		viaEpic      bool
+	}{
+		{"missing", "", false},
+		{"false", `,"bRequiresAuth":false,"OwnershipToken":"false"`, false},
+		{"auth", `,"bRequiresAuth":true,"bCanRunOffline":true`, true},
+		{"token-string", `,"OwnershipToken":"true"`, true},
+		{"token-bool", `,"OwnershipToken":true`, true},
+		{"token-false", `,"OwnershipToken":false`, false},
+		{"token-null", `,"OwnershipToken":null`, false},
+		{"hogwarts", `,"bIsManaged":false,"bRequiresAuth":true,"bCanRunOffline":true,"OwnershipToken":"true","LaunchCommand":"-SaveToUserDir -UserDir=HogwartsLegacy"`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			install, _ := json.Marshal(dir)
+			data := `{"DisplayName":"游戏","InstallLocation":` + string(install) + `,"LaunchExecutable":"game.exe","CatalogNamespace":"ns","CatalogItemId":"item","AppName":"app"` + tc.fields + `}`
+			if err := os.WriteFile(filepath.Join(dir, "game.item"), []byte(data), 0600); err != nil {
+				t.Fatal(err)
+			}
+			games, warnings, err := Scan(dir)
+			if err != nil || len(warnings) != 0 || len(games) != 1 {
+				t.Fatalf("games=%+v warnings=%v err=%v", games, warnings, err)
+			}
+			if games[0].ViaEpic() != tc.viaEpic {
+				t.Fatalf("unexpected launch strategy: %+v", games[0])
+			}
+		})
 	}
 }

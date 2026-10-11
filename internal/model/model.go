@@ -5,9 +5,12 @@ type Game struct {
 	ID, Name, InstallDir, Executable, LaunchCommand string
 	Namespace, CatalogID, AppName                   string
 	Managed, HasDLC, ForceEpic                      bool
+	RequiresAuth, RequiresOwnershipToken            bool
 }
 
-func (g Game) ViaEpic() bool { return g.Managed || g.HasDLC || g.ForceEpic }
+func (g Game) ViaEpic() bool {
+	return g.Managed || g.HasDLC || g.RequiresAuth || g.RequiresOwnershipToken || g.ForceEpic
+}
 
 type Shortcut struct {
 	AppID                              uint32
