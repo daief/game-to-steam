@@ -29,7 +29,8 @@
 - 核心服务、模拟 HTTP、原生 UI 交互测试及 Go/MyGo 静态检查通过；测试不修改真实 Steam 库或凭据。
 - 本机只读发现 1 个已安装 Epic 游戏，最近账号当时无非 Steam 条目。已检查示例 UI 渲染和实际 EXE 主窗口创建/正常关闭。
 - 按用户要求已移除 smoke 脚本及任务，不再维护隐藏窗口启动检查。
-- 桥接已接入导入、PreviewLaunch 与 UpdateLaunch：cmd/epic-bridge 与 internal/bridge 共用 Go module，生产使用客户端同目录的 epic-bridge.exe，缺失时报错、不静默回退；直启不依赖桥接。Windows 命令转义生成 --game、--manifest-dir、--launcher，桥接参数不转发任意游戏 flag；重复候选识别桥接游戏标识，接管和重复导入保留原命令，用户按策略生成并保存才迁移。桥接通过 SysProcAttr.ParentProcess 将 Epic 启动请求的父进程设为桌面 Shell，清除 Steam 环境变量；隔离失败不回退普通子进程启动。原生辅助进程测试已验证父 PID、路径、创建时间与环境清理。
+- 桥接已接入导入、PreviewLaunch 与 UpdateLaunch：cmd/epic-bridge 与 internal/bridge 共用 Go module，生产使用客户端同目录的 epic-bridge.exe，缺失时报错、不静默回退；直启不依赖桥接。Windows 命令转义生成 --game、--manifest-dir、--launcher，桥接参数不转发任意游戏 flag；重复候选识别桥接游戏标识，接管和重复导入保留原命令，用户按策略生成并保存才迁移。本轮对照代码已按用户要求撤销，恢复桌面 Shell 父进程隔离+清理 Steam 环境变量的已提交基线，默认策略未更改。原生辅助进程测试已验证父 PID、路径、创建时间与环境清理；不记录环境变量值。
 - 桥接默认跟踪游戏安装目录内与清单同名的 EXE（覆盖霍格沃茨入口与 Phoenix 程序交接），可用 --watch-exe 指定实际路径；启动等待五分钟、退出宽限五秒，不关闭 Epic/游戏、不读取认证参数。日志在 AppData/game-to-steam/bridge/logs；详见 docs/bridge-experiment.md。
 - 用户授权后已备份并新增真实 Steam 的独立霍格沃茨桥接测试快捷方式，保留原条目；用户确认测试成功，测试前相关程序已退出。Shift+Tab 可打开好友窗口和聊天，但没有通常的半透明黑底遮罩；用户认为不影响使用，只确认 Overlay 部分可用。用户后续反馈手柄可用，但 Steam Input 自定义按键映射疑似未生效：保留为待办，不阻塞后续接入，不视为 Steam Input 兼容。Epic 已预先独立运行的场景仍待验证。用户此前也确认在线封面下载正常；有效 API Key 的真实请求由用户验收。
 - 不自行提交或推送；源码和记忆随用户后续正常 Git 流程处理。
+- Steam Input 对照：直接启动 Epic 映射生效；桌面父进程隔离+清理环境的基线映射不生效、会话可结束；桌面父进程隔离+继承环境则映射正常，但游戏/桥接退出后必须手动退出 Epic 才结束 Steam 会话，Overlay 未测；普通父进程+清理环境则所有手柄按键失效、Overlay 无黑底遮罩、会话结束正常。两版对照代码均已撤销；尚无兼顾输入与会话结束的解法。后续需研究实际游戏关联方式；默认直启 Epic/桥接可选仅是建议，尚未实施。用户要求保存 WIP 后暂停，勿将现有桥接视为完成兼容性验收。

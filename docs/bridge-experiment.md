@@ -22,11 +22,11 @@ PowerShell 直接运行只能验证启动和进程识别；Steam 会话是否正
 
 诊断日志：`%AppData%\game-to-steam\bridge\logs\session-*.log`，同时输出到控制台。只记录游戏标识、路径、PID、父 PID 和生命周期，不读取或记录游戏命令行、认证令牌。日志包含个人路径，分享前请检查。
 
-## 启动隔离
+## 启动方式对照实验
 
-使用 GetShellWindow 定位当前会话的桌面进程，通过 Go 的 SysProcAttr.ParentProcess（Windows 的 PROC_THREAD_ATTRIBUTE_PARENT_PROCESS）创建 Epic 启动请求进程，使其以桌面进程而非桥接为父进程。移除继承的 Steam 环境变量，不继承桥接句柄，不使用 shell 命令字符串或管理员权限；无法隔离则报错，不回退到普通子进程启动。
+本轮对照实验已撤销，代码恢复到桌面 Shell 父进程隔离并清理 Steam 环境变量的基线实现；客户端仍保留已提交的桥接接入，并未切换默认策略。基线会话结束可用，但 Steam Input 映射不生效，属于未完成方案。无法隔离时直接报错，不回退普通子进程启动；不继承桥接句柄、不关闭 Epic 或游戏、不输出环境变量值。
 
-父进程属性及继承行为见 [Microsoft 文档](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute)。这只保证 Windows 层面的父进程选择，**不保证 Steam 的追踪策略或 Overlay/Steam Input 行为**。尤其 Epic 已被 Steam 启动过时，本实验不会调整现有进程的父进程，需要先完全退出该 Epic，再从桌面独立打开。
+早期实验使用桌面 Shell 父进程隔离（[Microsoft 文档](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute)），但不能同时保证 Steam Input 与会话结束。当前版同样**不保证 Steam 的追踪策略或 Overlay/Steam Input 行为**。本实验不会改变已运行 Epic 的父进程或环境；做对照前应完全退出 Epic 与游戏，以避免复用旧进程影响结果。
 
 ## 手动验收
 
@@ -45,7 +45,7 @@ PowerShell 直接运行只能验证启动和进程识别；Steam 会话是否正
 
 已完成本机霍格沃茨的用户验收：测试前 Epic 与游戏均退出，从 Steam 的独立桥接测试条目启动后，用户确认会话结束正常。Shift+Tab 能打开好友窗口和聊天，但未显示通常的半透明黑底遮罩，用户认为不影响使用。后续手柄测试中，手柄能正常使用，但 Steam Input 自定义按键映射疑似未生效；不代表所有游戏或完整 Overlay/Steam Input 兼容性已验收。Epic 预先独立运行的场景仍待测试。
 
-待办：排查桥接隔离启动对 Steam Input 自定义映射的影响，对照原快捷方式测试同一手柄布局；普通手柄输入正常不能作为映射生效的证据。按用户要求暂不阻塞客户端接入。
+用户确认直接启动 Epic 时 Steam Input 布局修改生效；桌面父进程隔离且清理环境的基线映射不生效，但会话正常结束。保留桌面父进程隔离、继承 Steam 环境的对照版映射恢复；游戏退出后桥接结束、Epic 常驻时 Steam 仍显示游戏中，直到手动退出 Epic 才结束，Overlay 未测。普通父进程并清理环境的反向对照版则手柄任一按键均不生效，Overlay 仍无黑底遮罩，会话结束正常。两版对照代码均已撤销。当前尚未找到兼顾输入与会话结束的方案；后续可研究实际游戏与 Steam 关联的其他方式，默认直启 Epic/桥接可选仅为建议，尚未实施。辅助进程测试不等同真实游戏兼容性验收。
 
 `mise run test` 覆盖启动超时、取消、入口交接、路径边界、已有游戏、Epic 常驻和隔离失败。可选原生测试启动的只有自身测试辅助进程，不启动真实 Epic/游戏：
 
