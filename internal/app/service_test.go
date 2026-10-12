@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"game-to-steam/internal/model"
@@ -31,6 +32,10 @@ func fixture(t *testing.T) (*Service, model.Game) {
 	dir = filepath.Join(dir, "app")
 	before, _ := storage.Read(filepath.Join(dir, "state.json"))
 	s := &Service{Dir: dir, State: state, Profile: profile, stateFile: before, Preflight: func() error { return nil }}
+	s.BridgePath = filepath.Join(dir, "epic-bridge.exe")
+	if e := storage.Replace(s.BridgePath, nil); e != nil {
+		t.Fatal(e)
+	}
 	exe := filepath.Join(t.TempDir(), "中文 game.exe")
 	_ = os.WriteFile(exe, nil, 0600)
 	g := model.Game{ID: "ns:item:app", Namespace: "ns", CatalogID: "item", AppName: "app", Name: "游戏", Executable: exe, InstallDir: filepath.Dir(exe)}
@@ -277,7 +282,7 @@ func TestPreviewLaunchDoesNotWriteAndRespectsForce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !draft.ForceEpic || draft.Exe != `"`+launcher+`"` || draft.Options != "com.epicgames.launcher://apps/ns%3Aitem%3Aapp?action=launch&silent=true" {
+	if !draft.ForceEpic || draft.Exe != `"`+s.BridgePath+`"` || !strings.Contains(draft.Options, "--game ns:item:app") || !strings.Contains(draft.Options, "--launcher "+launcher) {
 		t.Fatal(draft)
 	}
 	if got := list(t, s)[0]; got.Exe != original.Exe || got.Options != original.Options {

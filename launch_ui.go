@@ -43,14 +43,15 @@ func (a *app) launchDialog(c *ui.Context) {
 				}, err
 			})
 		})
-		ui.Text(c, "生成会替换下面的命令草稿，请在生成后添加特殊 flag。取消强制后仍按 managed / DLC 自动判断。").FontSize(12).Width(680)
+		ui.Text(c, "生成会替换命令草稿。需要 Epic 或强制时使用桥接，否则直启 EXE；取消强制仍按清单判断（含认证/所有权令牌）。").FontSize(12).Width(680)
 		ui.Text(c, "启动程序（路径含空格时用双引号包裹）")
 		ui.TextInput(c, &a.launchDraft.Exe).Label("启动程序").Width(680).Disabled(a.busy)
 		ui.Text(c, "工作目录")
 		ui.TextInput(c, &a.launchDraft.StartDir).Label("工作目录").Width(680).Disabled(a.busy)
 		ui.Text(c, "启动参数（可修改或添加 flag）")
 		ui.TextInput(c, &a.launchDraft.Options).Label("启动参数").Width(680).Disabled(a.busy)
-		ui.Text(c, "参数传给当前启动程序；使用 Epic 启动器时，游戏是否接收这些 flag 取决于启动器支持。").FontSize(12).Width(680)
+		ui.Text(c, "桥接参数支持 --watch-exe、--startup-timeout、--exit-grace，不转发任意游戏 flag；直启时参数传给游戏。").FontSize(12).Width(680)
+		ui.Text(c, "已知限制：桥接下 Steam Input 自定义映射疑似未生效，Overlay 显示可能不同；手柄原生输入正常不代表 Steam Input 生效。").FontSize(12).Width(680)
 		pending := a.launchGeneratedForce != a.launchDraft.ForceEpic
 		if pending {
 			ui.Text(c, "强制选项已改变，请先按策略生成命令，再调整参数。").FontSize(12)

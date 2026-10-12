@@ -86,6 +86,9 @@ func TestLaunchEditorLoadsActualCommandAndKeepsCancelledChangesLocal(t *testing.
 	a.snapshot.Shortcuts[0] = model.Shortcut{AppID: 1, Name: "Custom name", Exe: `"C:\custom.exe"`, StartDir: `"C:\"`, Options: "--original"}
 	a.openLaunch("one")
 	tt := ui.NewTester(a.view, 1100, 780)
+	if !tt.HasText("已知限制：桥接下 Steam Input 自定义映射疑似未生效，Overlay 显示可能不同；手柄原生输入正常不代表 Steam Input 生效。") {
+		t.Fatal("missing bridge compatibility warning")
+	}
 	if a.launchDraft.Options != "--original" || a.launchDraft.Exe != `"C:\custom.exe"` {
 		t.Fatal("editor did not load Steam fields")
 	}

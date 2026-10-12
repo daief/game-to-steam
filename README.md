@@ -4,7 +4,7 @@
 
 ## 运行
 
-双击 `build/windows-amd64/game-to-steam.exe` 即可启动。
+双击 `build/windows-amd64/game-to-steam.exe` 即可启动。发布或移动客户端时，将同目录的 `epic-bridge.exe` 一起保留。
 
 1. 打开客户端，自动扫描 Epic 官方启动器的已安装游戏，并识别最近使用的 Steam 账号。
 2. 如果路径未找到，在“设置”中填写 Steam 安装目录、Epic 安装清单目录和 `EpicGamesLauncher.exe` 路径。
@@ -14,15 +14,15 @@
 
 默认读取 `%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests` 的 `.item` 安装清单，不登录 Epic，也不读取账号全部已购游戏。
 
-启动方式：`bIsManaged` 为真、`ExpectingDLCInstalled` 非空、`bRequiresAuth` 为真、`OwnershipToken` 为布尔值或字符串 `true`，或用户强制时，使用 Epic 启动器及对应游戏 URI；否则直接运行游戏 EXE，并保留安装清单中的启动参数。允许离线运行不代表可以绕过 Epic 认证。自动判断不能覆盖所有游戏；直接启动失败时可改用 Epic。已导入的命令不会自动改写，可在启动设置中按新策略生成后保存。
+启动方式：`bIsManaged` 为真、`ExpectingDLCInstalled` 非空、`bRequiresAuth` 为真、`OwnershipToken` 为布尔值或字符串 `true`，或用户强制时，Steam 启动桥接程序，由桥接调用 Epic 并跟踪游戏退出；否则直接运行游戏 EXE，不引入桥接，并保留安装清单中的启动参数。允许离线运行不代表可以绕过 Epic 认证。自动判断不能覆盖所有游戏；直接启动失败时可改用 Epic。已导入的命令不会自动改写，可在启动设置中按新策略生成后保存。桥接缺失时明确报错，不静默回退。
 
 ## 已有条目、删除与封面
 
-- 同一路径、Epic 游戏 URI 或同名条目会触发重复候选提示。核对候选的路径与 AppID 后选择接管或跳过。同名可能是不同游戏，不会自动接管。
+- 同一路径、Epic 游戏 URI、桥接游戏标识或同名条目会触发重复候选提示。核对候选的路径与 AppID 后选择接管或跳过。同名可能是不同游戏，不会自动接管。
 - 接管保留已有 AppID、名称、参数、标签和图片。之后保存“启动设置”才会改写启动配置；已有 AppID 保持不变。
 - 已导入或接管的游戏可从 Epic 列表、Steam 列表或详情页打开“启动设置”。弹窗读取当前 Steam 启动程序、工作目录和完整启动参数，支持添加特殊 flag。
 - 修改“强制通过 Epic 启动”后先点击“按策略生成命令”，再调整参数并保存。生成只修改草稿，会替换手动命令；未修改启动策略时可直接编辑现有参数。取消强制会恢复清单自动判断（managed/DLC/认证/所有权令牌），不保证一定改为直接启动。
-- 参数传给当前启动程序：通过 Epic 启动时先传给 Epic 启动器，游戏是否收到这些 flag 取决于启动器支持。保存前需退出 Steam；AppID、名称、图片、标签及未知字段保留，重复导入不会覆盖手动命令。打开编辑器后发生的外部命令修改会阻止保存。
+- 参数传给当前启动程序：直启时传给游戏；桥接模式支持 `--watch-exe`、`--startup-timeout`、`--exit-grace` 等桥接参数，不转发任意游戏 flag。手动保留旧 Epic 命令时，游戏是否收到 flag 仍取决于 Epic 启动器。保存前需退出 Steam；AppID、名称、图片、标签及未知字段保留，重复导入不会覆盖手动命令。打开编辑器后发生的外部命令修改会阻止保存。
 - “Steam 快捷方式”列出当前账号的全部非 Steam 游戏，支持搜索与批量删除。删除不会卸载游戏。
 - 删除确认框的“同时清理图片”默认勾选，可手动取消。清理仅删除 Steam `grid` 目录中与所选 AppID 精确对应的自定义图片，不删除游戏目录、外部图标或本地选图的源文件。
 - 仅已导入或明确接管的 Epic 游戏提供“封面与启动”管理。未安装但仍有管理关联的条目，也可从 Steam 列表进入封面管理。
@@ -41,9 +41,9 @@
 
 网络设置失败时会显示具体错误。指定地址格式不正确时不能保存；自动代理解析失败会报错，不默默改为直连。Windows 自动发现没有找到 WPAD 服务时使用其手动代理设置。
 
-## Epic 桥接实验
+## Epic 桥接
 
-`mise run bridge-build` 单独生成 `build/windows-amd64/epic-bridge.exe`。它尝试隔离 Epic 的启动进程，并跟踪实际游戏退出，以解决 Epic 常驻导致 Steam 一直显示游戏中的问题。尚未接入客户端或自动迁移快捷方式；Steam 状态及 Overlay/Steam Input 需要实机验收，见[实验说明](docs/bridge-experiment.md)。
+`mise run build` 同时生成客户端与桥接 EXE；`mise run bridge-build` 可单独构建桥接。它隔离 Epic 的启动进程并跟踪游戏退出，不关闭 Epic；已在霍格沃茨测试中确认 Steam 会话能结束。新导入和按策略生成命令已接入，已有快捷方式不自动迁移。桥接下 Overlay 显示有差异，Steam Input 自定义映射疑似未生效（待办），不能视为完整兼容；见[桥接说明](docs/bridge-experiment.md)。
 
 ## 开发与构建
 
@@ -91,7 +91,7 @@ go tool mygo vet
 go build -mod=readonly -trimpath -ldflags="-s -w -H=windowsgui" -o build/windows-amd64/game-to-steam.exe .
 ```
 
-`mise run build` 直接调用 `go build`，并设置 `GOOS=windows`、`GOARCH=amd64`，生成不带控制台窗口的便携 EXE，不下载 NSIS 或生成安装包。上面的原始命令适用于 Windows amd64 开发环境。`mygo.json` 用于 MyGo 开发工具；`go tool mygo build` 则会运行框架完整打包流程，可能下载安装包工具。
+`mise run build` 先构建桥接，再直接调用 `go build` 构建客户端，任务设置 `GOOS=windows`、`GOARCH=amd64`。客户端不带控制台窗口，桥接仍保留诊断控制台。使用上面的原始构建命令时，还需运行 `go build -mod=readonly -trimpath -o build/windows-amd64/epic-bridge.exe ./cmd/epic-bridge`。`mise run dev` 会预构建桥接，并通过项目环境变量指定其路径；生产客户端默认使用自身目录中的桥接。`mygo.json` 用于 MyGo 开发工具；`go tool mygo build` 则会运行框架完整打包流程，可能下载安装包工具。
 
 国内网络连接默认代理超时时，可仅在当前 PowerShell 会话设置 `$env:GOPROXY='https://goproxy.cn,direct'`，然后重新下载依赖。
 

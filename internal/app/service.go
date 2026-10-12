@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"game-to-steam/internal/artwork"
+	"game-to-steam/internal/bridge"
 	"game-to-steam/internal/epic"
 	"game-to-steam/internal/model"
 	"game-to-steam/internal/network"
@@ -27,6 +28,8 @@ type Service struct {
 	Profile   model.SteamProfile
 	stateFile storage.Snapshot
 	Preflight func() error
+	// BridgePath is a runtime dependency, not a persisted launch preference.
+	BridgePath string
 }
 type Snapshot struct {
 	Games     []model.Game
@@ -59,7 +62,25 @@ func New(dir string) (*Service, error) {
 		s.Settings.EpicLauncherPath = system.EpicLauncherPath()
 	}
 	s.Settings = normalizeSettings(s.Settings)
-	return &Service{Dir: dir, State: s, stateFile: file, Preflight: system.RequireSteamStopped}, nil
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	bridgePath := filepath.Join(filepath.Dir(executable), "epic-bridge.exe")
+	if override := os.Getenv("GAME_TO_STEAM_BRIDGE_PATH"); override != "" {
+		bridgePath, err = filepath.Abs(override)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &Service{Dir: dir, State: s, stateFile: file, Preflight: system.RequireSteamStopped, BridgePath: bridgePath}, nil
+}
+
+func (s *Service) makeShortcut(g model.Game) (model.Shortcut, error) {
+	if !g.ViaEpic() {
+		return epic.MakeShortcut(g, s.State.Settings.EpicLauncherPath)
+	}
+	return bridge.MakeShortcut(g, s.State.Settings.EpicLauncherPath, s.BridgePath, s.State.Settings.EpicManifestPath)
 }
 
 func (s *Service) Refresh() Snapshot {
@@ -217,7 +238,7 @@ func Candidates(g model.Game, shortcuts []model.Shortcut) []model.Shortcut {
 	var out []model.Shortcut
 	for _, sc := range shortcuts {
 		decoded, _ := url.QueryUnescape(sc.Options)
-		if (g.Executable != "" && SamePath(sc.Exe, g.Executable)) || strings.Contains(decoded, "com.epicgames.launcher://apps/"+g.ID+"?") || strings.EqualFold(strings.TrimSpace(sc.Name), strings.TrimSpace(g.Name)) {
+		if (g.Executable != "" && SamePath(sc.Exe, g.Executable)) || strings.Contains(decoded, "com.epicgames.launcher://apps/"+g.ID+"?") || bridge.ShortcutGameID(sc) == g.ID || strings.EqualFold(strings.TrimSpace(sc.Name), strings.TrimSpace(g.Name)) {
 			out = append(out, sc)
 		}
 	}
@@ -300,7 +321,7 @@ func (s *Service) Import(ctx context.Context, requests []ImportRequest, key stri
 			result.Failed = true
 			result.Message = "发现重复候选，需要确认接管或跳过"
 		} else {
-			sc, err := epic.MakeShortcut(g, s.State.Settings.EpicLauncherPath)
+			sc, err := s.makeShortcut(g)
 			if err == nil {
 				sc.AppID = steam.AppID(sc.Exe, sc.Name)
 				for _, old := range current {
@@ -434,7 +455,7 @@ func (s *Service) UpdateLaunch(id string, force bool) error {
 		return fmt.Errorf("游戏已不在 Epic 安装清单中，无法更新启动策略")
 	}
 	m.Game.ForceEpic = force
-	generated, e := epic.MakeShortcut(m.Game, s.State.Settings.EpicLauncherPath)
+	generated, e := s.makeShortcut(m.Game)
 	if e != nil {
 		return e
 	}
@@ -461,7 +482,7 @@ func (s *Service) PreviewLaunch(id string, force bool) (model.LaunchSettings, er
 	for _, g := range games {
 		if g.ID == id {
 			g.ForceEpic = force
-			sc, e := epic.MakeShortcut(g, s.State.Settings.EpicLauncherPath)
+			sc, e := s.makeShortcut(g)
 			if e != nil {
 				return out, e
 			}

@@ -4,10 +4,13 @@ GOPROXY = "https://goproxy.cn,direct"
 
 [tasks.dev]
 description = "启动 MyGo 原生开发窗口，修改 Go 文件后自动重建"
+depends = ["bridge-build"]
+env = { GAME_TO_STEAM_BRIDGE_PATH = "build/windows-amd64/epic-bridge.exe" }
 run = "go tool mygo dev"
 
 [tasks.build]
-description = "构建 Windows amd64 便携 EXE"
+description = "构建 Windows amd64 客户端与桥接 EXE"
+depends = ["bridge-build"]
 env = { GOOS = "windows", GOARCH = "amd64" }
 run = 'go build -mod=readonly -trimpath -ldflags="-s -w -H=windowsgui" -o build/windows-amd64/game-to-steam.exe .'
 
@@ -16,7 +19,7 @@ description = "运行核心服务和原生 UI 测试"
 run = "go test ./..."
 
 [tasks.bridge-build]
-description = "构建独立 Epic 桥接实验程序（不修改 Steam 快捷方式）"
+description = "构建独立 Epic 桥接程序（不修改 Steam 快捷方式）"
 env = { GOOS = "windows", GOARCH = "amd64" }
 run = 'go build -mod=readonly -trimpath -o build/windows-amd64/epic-bridge.exe ./cmd/epic-bridge'
 

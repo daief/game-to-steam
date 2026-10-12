@@ -288,7 +288,7 @@ func (a *app) gameRow(c *ui.Context, g model.Game) {
 		via.ForceEpic = force
 		label := "自动策略：直接运行游戏 EXE"
 		if via.ViaEpic() {
-			label = "启动策略：通过 Epic 启动器"
+			label = "启动策略：通过桥接程序调用 Epic（游戏结束后结束 Steam 会话）"
 		}
 		if present {
 			label = "当前命令可在“启动设置”中查看和编辑"
