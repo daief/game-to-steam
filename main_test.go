@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -9,6 +10,64 @@ import (
 	"game-to-steam/internal/model"
 	"github.com/egoist/mygo/ui"
 )
+
+func TestBusyRejectsOperations(t *testing.T) {
+	a := testApp(t)
+	a.selectedGames["one"] = true
+	a.selectedShortcuts[1] = true
+	a.busy = true
+	a.prepareImport()
+	a.prepareDelete()
+	a.nextAdoption()
+	a.run("must not run", func(context.Context) (func(), error) {
+		t.Error("busy app started a job")
+		return nil, nil
+	})
+	if a.imports != nil || a.deleteIDs != nil || a.adoptOpen || a.deleteOpen {
+		t.Fatal("busy operation changed pending requests")
+	}
+}
+
+func TestForceAuthenticationLocalBinding(t *testing.T) {
+	a := testApp(t)
+	tt := ui.NewTester(a.view, 1100, 780)
+	if err := tt.Click("强制开启 Epic 认证"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.force["one"] || a.force["two"] {
+		t.Fatal(a.force)
+	}
+}
+
+func TestEpicLoginBusyTransitionPreservesCode(t *testing.T) {
+	a := testApp(t)
+	a.epicAuthOpen = true
+	a.epicAuthCode = "mock-code"
+	tt := ui.NewTester(a.view, 1100, 780)
+	// The previous frame enabled this button. The task starts before the next input.
+	a.busy = true
+	if err := tt.Click("确认 Epic 登录"); err != nil {
+		t.Fatal(err)
+	}
+	if a.epicAuthCode != "mock-code" || !a.epicAuthOpen {
+		t.Fatal("busy submit consumed the authorization code")
+	}
+}
+
+func TestEpicLoginSubmitClearsCode(t *testing.T) {
+	a := testApp(t)
+	a.epicAuthOpen = true
+	a.epicAuthCode = "mock-code"
+	// No native window: run rejects the job, so this checks the UI draft only
+	// and cannot send an authentication request.
+	tt := ui.NewTester(a.view, 1100, 780)
+	if err := tt.Click("确认 Epic 登录"); err != nil {
+		t.Fatal(err)
+	}
+	if a.epicAuthCode != "" {
+		t.Fatal("submitted authorization code retained in the UI")
+	}
+}
 
 func testApp(t *testing.T) *app {
 	t.Helper()

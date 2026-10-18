@@ -44,6 +44,9 @@ func (a *app) epicAuthDialog(c *ui.Context) {
 		ui.Row(c).Gap(12).Children(func() {
 			ui.Button(c, "取消登录").Disabled(a.busy).OnClick(func() { a.epicAuthCode = ""; a.epicAuthOpen = false })
 			ui.PrimaryButton(c, "确认 Epic 登录").Disabled(a.busy || strings.TrimSpace(a.epicAuthCode) == "").OnClick(func() {
+				if a.busy || strings.TrimSpace(a.epicAuthCode) == "" {
+					return
+				}
 				code := a.epicAuthCode
 				a.epicAuthCode = ""
 				a.run("Epic 独立认证", func(ctx context.Context) (func(), error) {

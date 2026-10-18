@@ -329,6 +329,9 @@ func (a *app) shortcutRow(c *ui.Context, s model.Shortcut) {
 }
 
 func (a *app) prepareImport() {
+	if a.busy {
+		return
+	}
 	a.imports = nil
 	for _, g := range a.snapshot.Games {
 		if a.selectedGames[g.ID] {
@@ -340,6 +343,9 @@ func (a *app) prepareImport() {
 	a.nextAdoption()
 }
 func (a *app) nextAdoption() {
+	if a.busy {
+		return
+	}
 	for a.importIndex < len(a.imports) {
 		req := a.imports[a.importIndex]
 		if m, ok := a.snapshot.Managed[req.Game.ID]; ok {
@@ -377,6 +383,9 @@ func shortcutChoice(s model.Shortcut) string {
 }
 
 func (a *app) prepareDelete() {
+	if a.busy {
+		return
+	}
 	a.deleteIDs = nil
 	for _, s := range a.snapshot.Shortcuts {
 		if a.selectedShortcuts[s.AppID] {
@@ -401,10 +410,13 @@ func (a *app) dialogs(c *ui.Context) {
 				}
 			})
 		})
-		ui.Checkbox(c, &a.deleteImages, "同时清理这些条目的 Steam 自定义图片")
+		ui.Checkbox(c, &a.deleteImages, "同时清理这些条目的 Steam 自定义图片").Disabled(a.busy)
 		ui.Row(c).Gap(12).Children(func() {
-			ui.Button(c, "取消删除").OnClick(func() { a.deleteOpen = false })
-			ui.PrimaryButton(c, "确认删除").OnClick(func() {
+			ui.Button(c, "取消删除").Disabled(a.busy).OnClick(func() { a.deleteOpen = false })
+			ui.PrimaryButton(c, "确认删除").Disabled(a.busy).OnClick(func() {
+				if a.busy {
+					return
+				}
 				ids := append([]uint32{}, a.deleteIDs...)
 				cleanup := a.deleteImages
 				a.deleteOpen = false
@@ -426,11 +438,21 @@ func (a *app) dialogs(c *ui.Context) {
 		for _, s := range a.adoptCandidates {
 			choices = append(choices, shortcutChoice(s))
 		}
-		ui.Select(c, &a.adoptChoice, choices).Width(660)
+		ui.Select(c, &a.adoptChoice, choices).Width(660).Disabled(a.busy)
 		ui.Row(c).Gap(12).Children(func() {
-			ui.Button(c, "取消本次导入").OnClick(func() { a.adoptOpen = false; a.imports = nil })
-			ui.Button(c, "跳过此游戏").OnClick(func() { a.imports[a.importIndex].Skip = true; a.importIndex++; a.nextAdoption() })
-			ui.PrimaryButton(c, "确认接管所选条目").OnClick(func() {
+			ui.Button(c, "取消本次导入").Disabled(a.busy).OnClick(func() { a.adoptOpen = false; a.imports = nil })
+			ui.Button(c, "跳过此游戏").Disabled(a.busy).OnClick(func() {
+				if a.busy {
+					return
+				}
+				a.imports[a.importIndex].Skip = true
+				a.importIndex++
+				a.nextAdoption()
+			})
+			ui.PrimaryButton(c, "确认接管所选条目").Disabled(a.busy).OnClick(func() {
+				if a.busy {
+					return
+				}
 				for _, sc := range a.adoptCandidates {
 					if shortcutChoice(sc) == a.adoptChoice {
 						a.imports[a.importIndex].AdoptID = sc.AppID
