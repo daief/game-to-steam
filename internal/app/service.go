@@ -683,13 +683,14 @@ func (s *Service) FillArtwork(ctx context.Context, id, key string) ([]model.Resu
 	if clientErr != nil {
 		return nil, clientErr
 	}
-	games, e := client.Search(ctx, m.Game.Name)
+	query := artwork.SearchQuery(m.Game)
+	games, e := client.Search(ctx, query)
 	if e != nil {
 		return nil, e
 	}
 	var matched *artwork.Game
 	for _, g := range games {
-		if strings.EqualFold(g.Name, m.Game.Name) {
+		if strings.EqualFold(strings.TrimSpace(g.Name), strings.TrimSpace(query)) {
 			if matched != nil {
 				return nil, fmt.Errorf("存在多个同名匹配，请手动选择图片来源")
 			}
@@ -697,8 +698,11 @@ func (s *Service) FillArtwork(ctx context.Context, id, key string) ([]model.Resu
 			matched = &copy
 		}
 	}
+	if matched == nil && len(games) > 0 {
+		matched = &games[0]
+	}
 	if matched == nil {
-		return nil, fmt.Errorf("没有唯一同名匹配，请在封面管理中手动搜索选择")
+		return nil, fmt.Errorf("搜索 %q 没有结果，请在封面管理中手动搜索选择", query)
 	}
 	results := []model.Result{}
 	for _, kind := range model.ArtworkKinds {
