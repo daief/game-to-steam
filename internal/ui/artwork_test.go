@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	service "game-to-steam/internal/app"
 	"game-to-steam/internal/artwork"
 	"game-to-steam/internal/model"
-	"github.com/egoist/mygo/ui"
+	nativeui "github.com/egoist/mygo/ui"
 	"image"
 	"image/color"
 	"image/png"
@@ -37,7 +37,7 @@ func TestArtworkCardsPreserveSelectionsAndBusy(t *testing.T) {
 	portrait.previewData = []byte("portrait")
 	portrait.previewKind = model.Portrait
 	portrait.artImages = []artwork.Image{{ID: 1}}
-	tt := ui.NewTester(a.view, 1100, 800)
+	tt := nativeui.NewTester(a.view, 1100, 800)
 	for i, k := range model.ArtworkKinds {
 		if err := tt.Click(k.Label()); err != nil {
 			t.Fatal(err)
@@ -112,7 +112,7 @@ func TestArtworkSourceResetAndActualStatus(t *testing.T) {
 	}
 }
 func TestArtworkPreviewArtifacts(t *testing.T) {
-	dir := os.Getenv("GAME_TO_STEAM_PREVIEW_DIR")
+	dir := previewDir()
 	if dir == "" {
 		t.Skip("optional preview")
 	}
@@ -146,11 +146,11 @@ func TestArtworkPreviewArtifacts(t *testing.T) {
 			state.thumbs[id] = bitmap(im, 200, 240)
 		}
 		if a.artCurrent == nil {
-			a.artCurrent = map[model.ArtworkKind]*ui.Bitmap{}
+			a.artCurrent = map[model.ArtworkKind]*nativeui.Bitmap{}
 		}
 		a.artCurrent[k] = bitmap(im, 240, 140)
 		a.artStatus[k] = service.ArtworkStatus{Paths: []string{"sample.png"}}
-		tt := ui.NewTester(a.view, 1100, 800)
+		tt := nativeui.NewTester(a.view, 1100, 800)
 		f, err := os.Create(filepath.Join(dir, "artwork-"+string(k)+".png"))
 		if err != nil {
 			t.Fatal(err)
@@ -171,7 +171,7 @@ func TestArtworkChangeSourceClearsAllDrafts(t *testing.T) {
 		a.artTab = i
 		a.artState().previewData = []byte("old source")
 	}
-	tt := ui.NewTester(a.view, 1100, 800)
+	tt := nativeui.NewTester(a.view, 1100, 800)
 	if err := tt.Click(artGameLabel(a.artGames[0])); err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +192,7 @@ func TestArtworkBusySourceAndSearchInput(t *testing.T) {
 	a := artworkTestApp(t)
 	a.artGames = []artwork.Game{{ID: 1, Name: "First"}, {ID: 2, Name: "Second"}}
 	a.artGameChoice = artGameLabel(a.artGames[0])
-	tt := ui.NewTester(a.view, 1100, 800)
+	tt := nativeui.NewTester(a.view, 1100, 800)
 	if err := tt.Click(artGameLabel(a.artGames[0])); err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestArtworkBusySourceAndSearchInput(t *testing.T) {
 		t.Fatal("busy source changed")
 	}
 	a.busy = false
-	tt = ui.NewTester(a.view, 1100, 800)
+	tt = nativeui.NewTester(a.view, 1100, 800)
 	if err := tt.Click("封面搜索词"); err != nil {
 		t.Fatal(err)
 	}
@@ -278,13 +278,13 @@ func TestAllCandidateThumbnailsDoNotDownloadOriginals(t *testing.T) {
 
 func TestArtworkLayoutUsesCurrentCardsAndSingleSave(t *testing.T) {
 	a := artworkTestApp(t)
-	current := ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 20, 30)))
-	a.artCurrent = map[model.ArtworkKind]*ui.Bitmap{model.Portrait: current}
+	current := nativeui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 20, 30)))
+	a.artCurrent = map[model.ArtworkKind]*nativeui.Bitmap{model.Portrait: current}
 	state := a.artState()
-	state.preview = ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 10, 20)))
+	state.preview = nativeui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 10, 20)))
 	state.previewData = []byte("pending")
 	state.previewKind = model.Portrait
-	tt := ui.NewTester(a.view, 1100, 800)
+	tt := nativeui.NewTester(a.view, 1100, 800)
 	for _, label := range []string{"当前设置", "竖版封面", "横版封面", "详情背景", "搜索", "保存"} {
 		if !tt.HasText(label) {
 			t.Fatal("missing layout element", label)
@@ -358,7 +358,7 @@ func TestArtworkManySourcesLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.artStates[model.Portrait] = state
-	tt := ui.NewTester(a.view, 1100, 800)
+	tt := nativeui.NewTester(a.view, 1100, 800)
 	rect, ok := tt.Find("候选图片列表")
 	if !ok {
 		t.Fatal("missing image list")
@@ -378,7 +378,7 @@ func TestArtworkManySourcesLayout(t *testing.T) {
 	if red>>8 != 30 || green>>8 != 100 || blue>>8 != 150 {
 		t.Fatal("downloaded image not visible", pixel)
 	}
-	if dir := os.Getenv("GAME_TO_STEAM_PREVIEW_DIR"); dir != "" {
+	if dir := previewDir(); dir != "" {
 		f, _ := os.Create(filepath.Join(dir, "artwork-many-sources.png"))
 		if f != nil {
 			_ = png.Encode(f, tt.Image())
@@ -401,9 +401,9 @@ func TestCandidateClickSelectsWithoutDownloadAndSaveDownloads(t *testing.T) {
 	state := a.artState()
 	state.artImages = []artwork.Image{candidate}
 	state.loaded = true
-	state.thumbs[42] = ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 12, 18)))
+	state.thumbs[42] = nativeui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 12, 18)))
 	state.previewData = []byte("old local selection")
-	tt := ui.NewTester(a.view, 1100, 800)
+	tt := nativeui.NewTester(a.view, 1100, 800)
 	if err := tt.Click("选择 #42"); err != nil {
 		t.Fatal(err)
 	}
@@ -484,10 +484,10 @@ func TestArtworkCandidatesWrapWithWindowWidth(t *testing.T) {
 	state.loaded = true
 	for id := 1; id <= 20; id++ {
 		state.artImages = append(state.artImages, artwork.Image{ID: id, URL: fmt.Sprintf("https://images.invalid/%d", id)})
-		state.thumbs[id] = ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 120, 180)))
+		state.thumbs[id] = nativeui.NewBitmap(image.NewRGBA(image.Rect(0, 0, 120, 180)))
 	}
 	columns := func(width int) int {
-		tt := ui.NewTester(a.view, width, 900)
+		tt := nativeui.NewTester(a.view, width, 900)
 		first, ok := tt.Find("选择 #1")
 		if !ok {
 			t.Fatal("missing first candidate")

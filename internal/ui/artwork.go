@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/ui"
+	nativeui "github.com/egoist/mygo/ui"
 	"golang.org/x/image/draw"
 
 	service "game-to-steam/internal/app"
@@ -17,25 +17,25 @@ import (
 	"game-to-steam/internal/model"
 )
 
-func bitmap(im image.Image, maxW, maxH int) *ui.Bitmap {
+func bitmap(im image.Image, maxW, maxH int) *nativeui.Bitmap {
 	if im == nil {
 		return nil
 	}
 	b := im.Bounds()
 	w, h := b.Dx(), b.Dy()
 	if w <= maxW && h <= maxH {
-		return ui.NewBitmap(im)
+		return nativeui.NewBitmap(im)
 	}
 	scale := min(float64(maxW)/float64(w), float64(maxH)/float64(h))
 	target := image.NewRGBA(image.Rect(0, 0, max(1, int(float64(w)*scale)), max(1, int(float64(h)*scale))))
 	draw.CatmullRom.Scale(target, target.Bounds(), im, b, draw.Over, nil)
-	return ui.NewBitmap(target)
+	return nativeui.NewBitmap(target)
 }
 
 type artState struct {
 	artImages    []artwork.Image
-	thumbs       map[int]*ui.Bitmap
-	preview      *ui.Bitmap
+	thumbs       map[int]*nativeui.Bitmap
+	preview      *nativeui.Bitmap
 	previewData  []byte
 	previewLabel string
 	previewKind  model.ArtworkKind
@@ -52,7 +52,7 @@ func (a *app) artState() *artState {
 	}
 	k := a.kind()
 	if a.artStates[k] == nil {
-		a.artStates[k] = &artState{thumbs: map[int]*ui.Bitmap{}}
+		a.artStates[k] = &artState{thumbs: map[int]*nativeui.Bitmap{}}
 	}
 	return a.artStates[k]
 }
@@ -104,9 +104,9 @@ func (a *app) openDetail(id string) {
 }
 
 // Read installed images separately from the candidate selections.
-func readCurrentArtwork(svc *service.Service, id string) (map[model.ArtworkKind]service.ArtworkStatus, map[model.ArtworkKind]*ui.Bitmap) {
+func readCurrentArtwork(svc *service.Service, id string) (map[model.ArtworkKind]service.ArtworkStatus, map[model.ArtworkKind]*nativeui.Bitmap) {
 	statuses := svc.ArtworkStatus(id)
-	current := map[model.ArtworkKind]*ui.Bitmap{}
+	current := map[model.ArtworkKind]*nativeui.Bitmap{}
 	for _, kind := range model.ArtworkKinds {
 		status := statuses[kind]
 		if status.Err != nil || len(status.Paths) == 0 {
@@ -163,68 +163,68 @@ func (a *app) fillArt() {
 		return func() { a.results = results; a.artStatus = statuses; a.artCurrent = current }, err
 	})
 }
-func (a *app) detailView(c *ui.Context) {
+func (a *app) detailView(c *nativeui.Context) {
 	m, ok := a.snapshot.Managed[a.detailID]
 	if !ok {
-		ui.Text(c, "游戏管理关联已不存在，请返回并刷新")
-		ui.Button(c, "返回游戏列表").Disabled(a.busy).OnClick(func() {
+		nativeui.Text(c, "游戏管理关联已不存在，请返回并刷新")
+		nativeui.Button(c, "返回游戏列表").Disabled(a.busy).OnClick(func() {
 			if !a.busy {
 				a.detailID = ""
 			}
 		})
 		return
 	}
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Button(c, "返回游戏列表").Disabled(a.busy).OnClick(func() {
+	nativeui.Row(c).Gap(10).AlignItems(nativeui.Center).Children(func() {
+		nativeui.Button(c, "返回游戏列表").Disabled(a.busy).OnClick(func() {
 			if !a.busy {
 				a.detailID = ""
 			}
 		})
-		ui.Text(c, m.Game.Name).FontSize(18).Bold().Grow(1)
-		ui.Button(c, "自动补齐缺失图片").Disabled(a.busy || a.key == "").OnClick(a.fillArt)
-		ui.Button(c, "启动设置").Disabled(a.busy).OnClick(func() { a.openLaunch(a.detailID) })
+		nativeui.Text(c, m.Game.Name).FontSize(18).Bold().Grow(1)
+		nativeui.Button(c, "自动补齐缺失图片").Disabled(a.busy || a.key == "").OnClick(a.fillArt)
+		nativeui.Button(c, "启动设置").Disabled(a.busy).OnClick(func() { a.openLaunch(a.detailID) })
 	})
-	ui.Column(c).Gap(6).WidthPercent(100).Children(func() {
-		ui.Text(c, "当前设置").Bold()
-		ui.Row(c).Gap(10).WidthPercent(100).Children(func() {
+	nativeui.Column(c).Gap(6).WidthPercent(100).Children(func() {
+		nativeui.Text(c, "当前设置").Bold()
+		nativeui.Row(c).Gap(10).WidthPercent(100).Children(func() {
 			for index, kind := range model.ArtworkKinds {
-				ui.Column(c.Key(string(kind))).Grow(1).Gap(4).Padding(6).Background(c.Theme().Surface).Disabled(a.busy).OnClick(func() { a.selectArtKind(index) }).Children(func() {
+				nativeui.Column(c.Key(string(kind))).Grow(1).Gap(4).Padding(6).Background(c.Theme().Surface).Disabled(a.busy).OnClick(func() { a.selectArtKind(index) }).Children(func() {
 					if bm := a.artCurrent[kind]; bm != nil {
-						ui.Image(c, bm).WidthPercent(100).Height(100).Fit(ui.Contain)
+						nativeui.Image(c, bm).WidthPercent(100).Height(100).Fit(nativeui.Contain)
 					} else {
-						ui.Box(c).WidthPercent(100).Height(100).Border(1, c.Theme().TextMuted)
+						nativeui.Box(c).WidthPercent(100).Height(100).Border(1, c.Theme().TextMuted)
 					}
-					makeButton := ui.Button
+					makeButton := nativeui.Button
 					if a.kind() == kind {
-						makeButton = ui.PrimaryButton
+						makeButton = nativeui.PrimaryButton
 					}
 					makeButton(c, kind.Label()).WidthPercent(100).Disabled(a.busy).OnClick(func() { a.selectArtKind(index) })
-					ui.Text(c, a.artStatusLabel(kind)).FontSize(11).TextColor(c.Theme().TextMuted)
+					nativeui.Text(c, a.artStatusLabel(kind)).FontSize(11).TextColor(c.Theme().TextMuted)
 				})
 			}
 		})
 	})
-	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+	nativeui.Row(c).Gap(8).AlignItems(nativeui.Center).Children(func() {
 		query := a.artQuery
-		ui.TextInput(c, &query).Label("封面搜索词").Placeholder("搜索游戏图片").Grow(1).Disabled(a.busy).OnChange(func() {
+		nativeui.TextInput(c, &query).Label("封面搜索词").Placeholder("搜索游戏图片").Grow(1).Disabled(a.busy).OnChange(func() {
 			if !a.busy {
 				a.artQuery = query
 			}
 		})
-		ui.Button(c, "搜索").Disabled(a.busy || a.key == "" || a.artQuery == "").OnClick(a.searchArt)
-		ui.Button(c, "本地图片").Disabled(a.busy).OnClick(a.chooseLocal)
-		ui.PrimaryButton(c, "保存").Disabled(a.busy || !a.artState().hasSelection()).OnClick(a.applyPreview)
+		nativeui.Button(c, "搜索").Disabled(a.busy || a.key == "" || a.artQuery == "").OnClick(a.searchArt)
+		nativeui.Button(c, "本地图片").Disabled(a.busy).OnClick(a.chooseLocal)
+		nativeui.PrimaryButton(c, "保存").Disabled(a.busy || !a.artState().hasSelection()).OnClick(a.applyPreview)
 	})
-	ui.Text(c, artPurpose(a.kind())+"；保存只替换此类图片，需退出 Steam。自动补齐作用于三类。").FontSize(11).TextColor(c.Theme().TextMuted)
+	nativeui.Text(c, artPurpose(a.kind())+"；保存只替换此类图片，需退出 Steam。自动补齐作用于三类。").FontSize(11).TextColor(c.Theme().TextMuted)
 	if len(a.artGames) > 1 {
-		ui.ScrollHorizontal(c).Label("游戏来源列表").Height(40).Shrink(0).WidthPercent(100).Children(func() {
-			ui.Row(c).Gap(6).Children(func() {
-				ui.Text(c, "游戏来源").FontSize(12).Shrink(0)
+		nativeui.ScrollHorizontal(c).Label("游戏来源列表").Height(40).Shrink(0).WidthPercent(100).Children(func() {
+			nativeui.Row(c).Gap(6).Children(func() {
+				nativeui.Text(c, "游戏来源").FontSize(12).Shrink(0)
 				for _, game := range a.artGames {
 					label := artGameLabel(game)
-					makeButton := ui.Button
+					makeButton := nativeui.Button
 					if label == a.artGameChoice {
-						makeButton = ui.PrimaryButton
+						makeButton = nativeui.PrimaryButton
 					}
 					makeButton(c, label).Shrink(0).Disabled(a.busy).OnClick(func() { a.selectArtSource(label) })
 				}
@@ -233,45 +233,45 @@ func (a *app) detailView(c *ui.Context) {
 	}
 	state := a.artState()
 	if state.hasSelection() {
-		ui.Text(c, state.previewLabel+" · 点击保存后更新上方图片").FontSize(12)
+		nativeui.Text(c, state.previewLabel+" · 点击保存后更新上方图片").FontSize(12)
 	}
-	ui.Scroll(c).Label("候选图片列表").Grow(1).MinHeight(260).WidthPercent(100).Children(func() {
-		ui.Column(c).Gap(10).WidthPercent(100).Children(func() {
+	nativeui.Scroll(c).Label("候选图片列表").Grow(1).MinHeight(260).WidthPercent(100).Children(func() {
+		nativeui.Column(c).Gap(10).WidthPercent(100).Children(func() {
 			if len(state.thumbErrors) > 0 {
-				ui.Text(c, fmt.Sprintf("%d 张图片加载失败，可选择后点击保存下载原图。", len(state.thumbErrors))).FontSize(12)
+				nativeui.Text(c, fmt.Sprintf("%d 张图片加载失败，可选择后点击保存下载原图。", len(state.thumbErrors))).FontSize(12)
 			}
 			if state.previewLabel != "" && !state.hasSelection() {
-				ui.Text(c, state.previewLabel).FontSize(12)
+				nativeui.Text(c, state.previewLabel).FontSize(12)
 			}
 			if !state.loaded {
-				ui.Text(c, "搜索游戏，或选择本地图片。").TextColor(c.Theme().TextMuted)
+				nativeui.Text(c, "搜索游戏，或选择本地图片。").TextColor(c.Theme().TextMuted)
 			}
 			if state.loaded && len(state.artImages) == 0 {
-				ui.Text(c, "暂无此类图片，请更换来源或选择本地图片。").FontSize(12)
+				nativeui.Text(c, "暂无此类图片，请更换来源或选择本地图片。").FontSize(12)
 			}
 			if state.selectedID == 0 && state.preview != nil && len(state.previewData) > 0 {
-				ui.Image(c, state.preview).Width(200).Height(120).Fit(ui.Contain)
+				nativeui.Image(c, state.preview).Width(200).Height(120).Fit(nativeui.Contain)
 			}
-			ui.Row(c).Wrap().Gap(10).WidthPercent(100).Children(func() {
+			nativeui.Row(c).Wrap().Gap(10).WidthPercent(100).Children(func() {
 				for _, candidate := range state.artImages {
-					ui.Column(c.Key(strconv.Itoa(candidate.ID))).Width(artCardWidth(a.kind())).Shrink(0).Gap(4).Padding(6).Background(c.Theme().Surface).Children(func() {
+					nativeui.Column(c.Key(strconv.Itoa(candidate.ID))).Width(artCardWidth(a.kind())).Shrink(0).Gap(4).Padding(6).Background(c.Theme().Surface).Children(func() {
 						if thumb := state.thumbs[candidate.ID]; thumb != nil {
-							ui.Image(c, thumb).WidthPercent(100).Height(artThumbHeight(a.kind())).Fit(ui.Contain).Disabled(a.busy).OnClick(func() { a.selectCandidate(candidate) })
+							nativeui.Image(c, thumb).WidthPercent(100).Height(artThumbHeight(a.kind())).Fit(nativeui.Contain).Disabled(a.busy).OnClick(func() { a.selectCandidate(candidate) })
 						} else {
-							ui.Button(c, "缩略图不可用 · 选择").Tooltip(state.thumbErrors[candidate.ID]).WidthPercent(100).Height(artThumbHeight(a.kind())).Disabled(a.busy).OnClick(func() { a.selectCandidate(candidate) })
+							nativeui.Button(c, "缩略图不可用 · 选择").Tooltip(state.thumbErrors[candidate.ID]).WidthPercent(100).Height(artThumbHeight(a.kind())).Disabled(a.busy).OnClick(func() { a.selectCandidate(candidate) })
 						}
 						label := fmt.Sprintf("选择 #%d", candidate.ID)
-						makeButton := ui.Button
+						makeButton := nativeui.Button
 						if state.selectedID == candidate.ID {
 							label = fmt.Sprintf("已选择 #%d", candidate.ID)
-							makeButton = ui.PrimaryButton
+							makeButton = nativeui.PrimaryButton
 						}
 						makeButton(c, label).WidthPercent(100).Disabled(a.busy).OnClick(func() { a.selectCandidate(candidate) })
 					})
 				}
 			})
 			for _, r := range a.results {
-				ui.Text(c, r.Name+"："+r.Message).FontSize(12)
+				nativeui.Text(c, r.Name+"："+r.Message).FontSize(12)
 			}
 		})
 	})
@@ -447,8 +447,8 @@ func artThumbHeight(kind model.ArtworkKind) float32 {
 
 // Load every displayed candidate, with bounded parallel downloads. A missing or
 // unusable thumbnail remains selectable; only Save downloads original images.
-func loadArtThumbnails(ctx context.Context, client *artwork.Client, images []artwork.Image) (map[int]*ui.Bitmap, map[int]string, error) {
-	loaded := make([]*ui.Bitmap, len(images))
+func loadArtThumbnails(ctx context.Context, client *artwork.Client, images []artwork.Image) (map[int]*nativeui.Bitmap, map[int]string, error) {
+	loaded := make([]*nativeui.Bitmap, len(images))
 	failures := make([]string, len(images))
 	var workers sync.WaitGroup
 	for worker := 0; worker < min(4, len(images)); worker++ {
@@ -476,7 +476,7 @@ func loadArtThumbnails(ctx context.Context, client *artwork.Client, images []art
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
-	thumbs := map[int]*ui.Bitmap{}
+	thumbs := map[int]*nativeui.Bitmap{}
 	errors := map[int]string{}
 	for i, message := range failures {
 		if message != "" {

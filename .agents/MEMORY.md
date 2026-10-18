@@ -17,6 +17,7 @@
 ## 实现约束
 
 - internal/app 协调业务；epic 扫描清单；steam 处理账号、二进制 VDF 和图片命名；storage 管理状态与备份；system 封装 Windows API；artwork 处理 SteamGridDB。
+- 整套原生 UI 位于 internal/ui（app、artwork、launch、auth 及对应测试），根目录 main.go 只调用 ui.Run 并处理启动错误。MyGo 控件包统一别名 nativeui；UI 预览和只读环境测试命令指向 ./internal/ui，相对预览路径仍以项目根目录为基准。
 - 设置中的路径统一为 Windows 反斜杠和大写盘符。Epic 启动器优先从 com.epicgames.launcher 协议命令解析，再尝试安装记录和默认目录；仅检查候选文件，不递归扫描磁盘。自定义安装位置的 InstallLocation 可能缺失，协议记录仍有效。
 - shortcuts.vdf 保留有序字段、未知字段和未操作条目。不可解析文件禁止覆盖。新 AppID 使用 CRC32(Exe+AppName) 设置最高位，已有 AppID 保持不变。
 - UI 状态只在主线程修改，后台任务串行访问服务，用 Window.Update 回传。取消仅停止后续任务，不撤销成功操作。

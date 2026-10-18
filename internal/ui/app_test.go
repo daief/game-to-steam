@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	service "game-to-steam/internal/app"
 	"game-to-steam/internal/epicauth"
 	"game-to-steam/internal/model"
-	"github.com/egoist/mygo/ui"
+	nativeui "github.com/egoist/mygo/ui"
 )
 
 func TestBusyRejectsOperations(t *testing.T) {
@@ -30,7 +30,7 @@ func TestBusyRejectsOperations(t *testing.T) {
 
 func TestForceAuthenticationLocalBinding(t *testing.T) {
 	a := testApp(t)
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	if err := tt.Click("强制开启 Epic 认证"); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestEpicLoginBusyTransitionPreservesCode(t *testing.T) {
 	a := testApp(t)
 	a.epicAuthOpen = true
 	a.epicAuthCode = "mock-code"
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	// The previous frame enabled this button. The task starts before the next input.
 	a.busy = true
 	if err := tt.Click("确认 Epic 登录"); err != nil {
@@ -60,7 +60,7 @@ func TestEpicLoginSubmitClearsCode(t *testing.T) {
 	a.epicAuthCode = "mock-code"
 	// No native window: run rejects the job, so this checks the UI draft only
 	// and cannot send an authentication request.
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	if err := tt.Click("确认 Epic 登录"); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func testApp(t *testing.T) *app {
 }
 func TestSearchAndVisibleSelection(t *testing.T) {
 	a := testApp(t)
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	if e := tt.Click("搜索游戏"); e != nil {
 		t.Fatal(e)
 	}
@@ -101,7 +101,7 @@ func TestDeleteConfirmationDefaultsAndCancel(t *testing.T) {
 	a.page = "Steam 快捷方式"
 	a.selectedShortcuts[1] = true
 	a.deleteImages = false
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	if e := tt.Click("删除所选 (1)"); e != nil {
 		t.Fatal(e)
 	}
@@ -125,7 +125,7 @@ func TestAdoptionRequiresConfirmation(t *testing.T) {
 	a := testApp(t)
 	a.snapshot.Shortcuts = []model.Shortcut{{AppID: 5, Name: "Alpha", Exe: "other.exe"}}
 	a.selectedGames["one"] = true
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	if e := tt.Click("导入所选 (1)"); e != nil {
 		t.Fatal(e)
 	}
@@ -145,7 +145,7 @@ func TestLaunchEditorLoadsActualCommandAndKeepsCancelledChangesLocal(t *testing.
 	a.snapshot.Managed["one"] = model.ManagedGame{Game: model.Game{ID: "one", Name: "Alpha"}, AppID: 1}
 	a.snapshot.Shortcuts[0] = model.Shortcut{AppID: 1, Name: "Custom name", Exe: `"C:\custom.exe"`, StartDir: `"C:\"`, Options: "--original"}
 	a.openLaunch("one")
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	if !tt.HasText("桥接需先在设置中登录 Epic，不启动官方客户端，也不提供云存档同步。") {
 		t.Fatal("missing authentication/cloud-save guidance")
 	}
@@ -178,7 +178,7 @@ func TestNetworkSettingsModeSelection(t *testing.T) {
 	a.page = "设置"
 	a.settings.Network.Mode = "custom"
 	a.settings.Network.ProxyURL = "http://127.0.0.1:7890"
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	if e := tt.Click("代理地址"); e != nil {
 		t.Fatal(e)
 	}
@@ -197,7 +197,7 @@ func TestEpicLoginDialogClearsCodeOnCancel(t *testing.T) {
 	a := testApp(t)
 	a.epicAuthOpen = true
 	a.epicAuthCode = "sensitive-code"
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	if !tt.HasText("登录 Epic 独立认证") {
 		t.Fatal("missing login dialog")
 	}
@@ -216,7 +216,7 @@ func TestEpicAuthSettingsAndForgetConfirmation(t *testing.T) {
 	a := testApp(t)
 	a.page = "设置"
 	a.snapshot.EpicAuth = epicauth.Status{State: "ready", DisplayName: "Test user"}
-	tt := ui.NewTester(a.view, 1100, 1600)
+	tt := nativeui.NewTester(a.view, 1100, 1600)
 	if !tt.HasText("已登录：Test user（本地状态）") {
 		t.Fatal("missing auth status")
 	}

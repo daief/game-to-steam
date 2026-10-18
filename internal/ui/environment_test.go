@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	service "game-to-steam/internal/app"
 	"game-to-steam/internal/model"
 	"game-to-steam/internal/steam"
-	"github.com/egoist/mygo/ui"
+	nativeui "github.com/egoist/mygo/ui"
 )
 
 // Opt-in diagnostics inspect real launcher files but never write to them.
@@ -48,7 +48,7 @@ func TestInstalledEnvironmentReadOnly(t *testing.T) {
 
 // Export an optional preview using MyGo's actual native software renderer.
 func TestPreviewArtifact(t *testing.T) {
-	dir := os.Getenv("GAME_TO_STEAM_PREVIEW_DIR")
+	dir := previewDir()
 	if dir == "" {
 		t.Skip("optional UI preview")
 	}
@@ -60,7 +60,7 @@ func TestPreviewArtifact(t *testing.T) {
 	}
 	a.status = "扫描完成 · 3 个 Epic 游戏"
 	a.selectedGames["alpha"] = true
-	tt := ui.NewTester(a.view, 1100, 780)
+	tt := nativeui.NewTester(a.view, 1100, 780)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestPreviewArtifact(t *testing.T) {
 	a.snapshot.Managed["alpha"] = model.ManagedGame{Game: a.snapshot.Games[0], AppID: 123}
 	a.snapshot.Shortcuts = []model.Shortcut{{AppID: 123, Name: "Hades · 黑帝斯", Exe: `"D:\Games\Hades\Hades.exe"`, StartDir: `"D:\Games\Hades"`, Options: "-windowed --example"}}
 	a.openLaunch("alpha")
-	editor := ui.NewTester(a.view, 1100, 780)
+	editor := nativeui.NewTester(a.view, 1100, 780)
 	launchFile, e := os.Create(filepath.Join(dir, "launch-preview.png"))
 	if e != nil {
 		t.Fatal(e)
@@ -88,7 +88,7 @@ func TestPreviewArtifact(t *testing.T) {
 	a.page = "设置"
 	a.settings.Network.Mode = "custom"
 	a.settings.Network.ProxyURL = "http://127.0.0.1:7890"
-	settingsView := ui.NewTester(a.view, 1100, 780)
+	settingsView := nativeui.NewTester(a.view, 1100, 780)
 	settingsFile, e := os.Create(filepath.Join(dir, "settings-preview.png"))
 	if e != nil {
 		t.Fatal(e)
@@ -99,7 +99,7 @@ func TestPreviewArtifact(t *testing.T) {
 	}
 	a.epicAuthOpen = true
 	a.epicAuthCode = "preview-not-a-real-code"
-	authView := ui.NewTester(a.view, 1100, 780)
+	authView := nativeui.NewTester(a.view, 1100, 780)
 	authFile, e := os.Create(filepath.Join(dir, "auth-preview.png"))
 	if e != nil {
 		t.Fatal(e)
@@ -108,4 +108,13 @@ func TestPreviewArtifact(t *testing.T) {
 	if e = png.Encode(authFile, authView.Image()); e != nil {
 		t.Fatal(e)
 	}
+}
+
+// Preview paths stay relative to the project root after moving UI tests here.
+func previewDir() string {
+	dir := os.Getenv("GAME_TO_STEAM_PREVIEW_DIR")
+	if dir == "" || filepath.IsAbs(dir) {
+		return dir
+	}
+	return filepath.Join("..", "..", dir)
 }

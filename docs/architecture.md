@@ -3,7 +3,8 @@
 ## 分工
 
 ```text
-main.go / *_ui.go               原生界面、选择状态、弹窗和后台任务
+main.go                        程序入口，调用 internal/ui.Run
+internal/ui                    原生界面、选择状态、弹窗、后台任务和 UI 测试
 internal/app                   导入、接管、删除、启动策略和补图的协调
 internal/model                 各模块共享的数据结构
 internal/epic                  本地 .item 清单、启动方式和 Epic URI

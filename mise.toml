@@ -30,4 +30,4 @@ run = ["go vet ./...", "go tool mygo vet"]
 [tasks.preview]
 description = "使用示例数据渲染界面预览到 build/ui-preview.png"
 env = { GAME_TO_STEAM_PREVIEW_DIR = "build" }
-run = "go test -count=1 -run TestPreviewArtifact -v ."
+run = "go test -count=1 -run TestPreviewArtifact -v ./internal/ui"

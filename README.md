@@ -107,7 +107,7 @@ go build -mod=readonly -trimpath -ldflags="-s -w -H=windowsgui" -o build/windows
 
 ```powershell
 $env:GAME_TO_STEAM_LIVE_READONLY='1'
-go test -run TestInstalledEnvironmentReadOnly -v .
+go test -run TestInstalledEnvironmentReadOnly -v ./internal/ui
 Remove-Item Env:GAME_TO_STEAM_LIVE_READONLY
 ```
 
@@ -115,7 +115,7 @@ Remove-Item Env:GAME_TO_STEAM_LIVE_READONLY
 
 ```powershell
 $env:GAME_TO_STEAM_PREVIEW_DIR='build'
-go test -run TestPreviewArtifact -v .
+go test -run TestPreviewArtifact -v ./internal/ui
 Remove-Item Env:GAME_TO_STEAM_PREVIEW_DIR
 ```
 
