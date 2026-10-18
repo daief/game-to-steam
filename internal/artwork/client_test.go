@@ -7,7 +7,9 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -156,4 +158,91 @@ func TestEmptyInvalidAndTimeout(t *testing.T) {
 	if _, e = c.Search(ctx, "timeout"); e == nil {
 		t.Fatal("timeout not propagated")
 	}
+}
+
+func TestAllArtworkEndpoints(t *testing.T) {
+	for _, tc := range []struct {
+		kind             model.ArtworkKind
+		path, dimensions string
+	}{
+		{model.Portrait, "/grids/game/42", "600x900"},
+		{model.Landscape, "/grids/game/42", "460x215,920x430"},
+		{model.Hero, "/heroes/game/42", ""},
+	} {
+		t.Run(string(tc.kind), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != tc.path || r.URL.Query().Get("dimensions") != tc.dimensions || r.URL.Query().Get("types") != "static" {
+					t.Errorf("wrong endpoint or filters: %s", r.URL)
+				}
+				_, _ = w.Write([]byte(`{"success":true,"data":[]}`))
+			}))
+			defer server.Close()
+			c := New("mock", "")
+			c.BaseURL = server.URL
+			if _, err := c.Images(context.Background(), 42, tc.kind); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// thumbnail.webp is the Go x/image gopher-doc.1bpp.lossless.webp fixture;
+// its BSD license is included beside it.
+func TestWebPThumbnailIsDecodedAndCachedAsPNG(t *testing.T) {
+	webp, err := os.ReadFile("testdata/thumbnail.webp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(webp) }))
+	client := New("mock", t.TempDir())
+	client.BaseURL = server.URL
+	data, im, err := client.DownloadThumbnail(context.Background(), server.URL+"/thumb.webp")
+	if err != nil || im == nil {
+		t.Fatal("WebP thumbnail failed", err)
+	}
+	if _, err = png.Decode(bytes.NewReader(data)); err != nil {
+		t.Fatal("cache is not PNG", err)
+	}
+	if _, _, err = Normalize(webp); err == nil {
+		t.Fatal("local format policy changed")
+	}
+	server.Close()
+	if _, _, err = client.DownloadThumbnail(context.Background(), server.URL+"/thumb.webp"); err != nil {
+		t.Fatal("cache not used", err)
+	}
+}
+
+func TestDownloadStillWorksWhenCacheCannotBeWritten(t *testing.T) {
+	data := testPNG(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(data) }))
+	defer server.Close()
+	cache := t.TempDir() + "/file"
+	if err := os.WriteFile(cache, []byte("not a directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	client := New("mock", cache)
+	client.BaseURL = server.URL
+	if _, im, err := client.DownloadThumbnail(context.Background(), server.URL+"/thumb"); err != nil || im == nil {
+		t.Fatal("cache failure hid valid image", err)
+	}
+}
+
+func TestConcurrentThumbnailCacheWritesDoNotHideImages(t *testing.T) {
+	webp, err := os.ReadFile("testdata/thumbnail.webp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write(webp) }))
+	defer server.Close()
+	client := New("mock", t.TempDir())
+	client.BaseURL = server.URL
+	var requests sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		requests.Go(func() {
+			if _, im, err := client.DownloadThumbnail(context.Background(), server.URL+"/shared.webp"); err != nil || im == nil {
+				t.Error("concurrent image lost", err)
+			}
+		})
+	}
+	requests.Wait()
 }

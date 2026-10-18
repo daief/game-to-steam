@@ -46,18 +46,17 @@ type app struct {
 	importIndex                  int
 	adoptChoice                  string
 	adoptCandidates              []model.Shortcut
-	detailID, artKind, artQuery  string
+	detailID, artQuery           string
 	artGames                     []artwork.Game
 	artGameChoice                string
-	artImages                    []artwork.Image
-	thumbs                       map[int]*ui.Bitmap
-	preview                      *ui.Bitmap
-	previewData                  []byte
-	previewLabel                 string
+	artStates                    map[model.ArtworkKind]*artState
+	artStatus                    map[model.ArtworkKind]service.ArtworkStatus
+	artTab                       int
+	artCurrent                   map[model.ArtworkKind]*ui.Bitmap
 }
 
 func newApp() *app {
-	return &app{page: "Epic 游戏", status: "准备就绪", selectedGames: map[string]bool{}, selectedShortcuts: map[uint32]bool{}, force: map[string]bool{}, thumbs: map[int]*ui.Bitmap{}, artKind: model.Portrait.Label()}
+	return &app{page: "Epic 游戏", status: "准备就绪", selectedGames: map[string]bool{}, selectedShortcuts: map[uint32]bool{}, force: map[string]bool{}, artStates: map[model.ArtworkKind]*artState{}}
 }
 
 // run serializes service access; workers return UI changes instead of writing
@@ -545,7 +544,11 @@ func main() {
 		}
 	}
 	mygo.App.WhenReady(func() {
-		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "game-to-steam", Width: 1100, Height: 780, MinWidth: 900, MinHeight: 640, StateKey: "main", Content: ui.View(a.view)})
+		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "game-to-steam", Width: 1280, Height: 900, MinWidth: 1100, MinHeight: 800, StateKey: "main", Content: ui.View(a.view)})
+		// MyGo restores saved outer bounds without clamping them to new minima.
+		// Ensure old window state cannot collapse the artwork browser on startup.
+		ensureMainWindowSize(a.win)
+
 		a.win.OnClose(func(e *mygo.CloseEvent) {
 			if a.busy {
 				e.PreventDefault()
@@ -558,5 +561,12 @@ func main() {
 	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func ensureMainWindowSize(win *mygo.Window) {
+	width, height := win.ContentSize()
+	if width < 1100 || height < 800 {
+		win.SetContentSize(max(width, 1100), max(height, 800))
 	}
 }

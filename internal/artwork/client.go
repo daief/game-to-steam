@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	_ "golang.org/x/image/webp"
 	"image"
 	_ "image/jpeg"
 	"image/png"
@@ -110,8 +111,6 @@ func (c *Client) Images(ctx context.Context, id int, kind model.ArtworkKind) ([]
 		query += "&dimensions=460x215,920x430"
 	case model.Hero:
 		endpoint = "heroes"
-	case model.Logo:
-		endpoint = "logos"
 	default:
 		return nil, fmt.Errorf("未知图片类型")
 	}
@@ -122,12 +121,14 @@ func (c *Client) Images(ctx context.Context, id int, kind model.ArtworkKind) ([]
 
 // Normalize validates before decoding, to limit both file and pixel allocations.
 // Encoding a still PNG avoids extension/mime mismatches and animation surprises.
-func Normalize(data []byte) ([]byte, image.Image, error) {
+func Normalize(data []byte) ([]byte, image.Image, error) { return normalize(data, false) }
+
+func normalize(data []byte, thumbnail bool) ([]byte, image.Image, error) {
 	if len(data) > maxImageBytes {
 		return nil, nil, fmt.Errorf("图片超过 20 MB")
 	}
 	cfg, format, e := image.DecodeConfig(bytes.NewReader(data))
-	if e != nil || (format != "png" && format != "jpeg") {
+	if e != nil || (format != "png" && format != "jpeg" && !(thumbnail && format == "webp")) {
 		return nil, nil, fmt.Errorf("请选择有效的 PNG 或 JPEG 静态图片")
 	}
 	if cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > 24_000_000 {
@@ -160,6 +161,15 @@ func Local(path string) ([]byte, image.Image, error) {
 }
 
 func (c *Client) Download(ctx context.Context, rawURL string) ([]byte, image.Image, error) {
+	return c.download(ctx, rawURL, false)
+}
+
+// DownloadThumbnail accepts static WebP thumbnails and caches a PNG. Full-size
+// downloads and local imports keep the existing PNG/JPEG restriction.
+func (c *Client) DownloadThumbnail(ctx context.Context, rawURL string) ([]byte, image.Image, error) {
+	return c.download(ctx, rawURL, true)
+}
+func (c *Client) download(ctx context.Context, rawURL string, thumbnail bool) ([]byte, image.Image, error) {
 	u, e := url.Parse(rawURL)
 	if e != nil {
 		return nil, nil, fmt.Errorf("无效的图片地址")
@@ -191,14 +201,14 @@ func (c *Client) Download(ctx context.Context, rawURL string) ([]byte, image.Ima
 	if e != nil {
 		return nil, nil, e
 	}
-	data, im, e := Normalize(b)
+	data, im, e := normalize(b, thumbnail)
 	if e != nil {
 		return nil, nil, e
 	}
 	if c.CacheDir != "" {
-		if e = storage.Replace(cache, data); e != nil {
-			return nil, nil, fmt.Errorf("图片缓存写入失败: %w", e)
-		}
+		// The decoded image remains usable if the optional cache is unwritable
+		// or another thumbnail request is replacing the same cached file.
+		_ = storage.Replace(cache, data)
 	}
 	return data, im, nil
 }

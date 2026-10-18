@@ -62,10 +62,9 @@ const (
 	Portrait  ArtworkKind = "portrait"
 	Landscape ArtworkKind = "landscape"
 	Hero      ArtworkKind = "hero"
-	Logo      ArtworkKind = "logo"
 )
 
-var ArtworkKinds = []ArtworkKind{Portrait, Landscape, Hero, Logo}
+var ArtworkKinds = []ArtworkKind{Portrait, Landscape, Hero}
 
 func (k ArtworkKind) Label() string {
 	switch k {
@@ -74,9 +73,7 @@ func (k ArtworkKind) Label() string {
 	case Landscape:
 		return "横版封面"
 	case Hero:
-		return "背景"
-	case Logo:
-		return "Logo"
+		return "详情背景"
 	}
 	return string(k)
 }

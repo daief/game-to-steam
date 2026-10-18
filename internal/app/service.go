@@ -684,3 +684,23 @@ func DataDir() (string, error) {
 	}
 	return filepath.Join(dir, "game-to-steam"), nil
 }
+
+// ArtworkStatus is a read-only snapshot of files matching Steam's artwork names.
+type ArtworkStatus struct {
+	Paths []string
+	Err   error
+}
+
+func (s *Service) ArtworkStatus(id string) map[model.ArtworkKind]ArtworkStatus {
+	result := map[model.ArtworkKind]ArtworkStatus{}
+	m, ok := s.State.Accounts[s.Profile.AccountID][id]
+	for _, kind := range model.ArtworkKinds {
+		if !ok {
+			result[kind] = ArtworkStatus{Err: fmt.Errorf("游戏未被管理")}
+			continue
+		}
+		paths, err := steam.ArtFiles(s.Profile.GridDir, m.AppID, kind)
+		result[kind] = ArtworkStatus{Paths: paths, Err: err}
+	}
+	return result
+}

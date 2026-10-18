@@ -17,8 +17,6 @@ func ArtBase(id uint32, kind model.ArtworkKind) string {
 		return base + "p"
 	case model.Hero:
 		return base + "_hero"
-	case model.Logo:
-		return base + "_logo"
 	}
 	return base
 }
@@ -43,12 +41,14 @@ func ArtFiles(dir string, id uint32, kind model.ArtworkKind) ([]string, error) {
 	}
 	return paths, nil
 }
+
+// Include historical logo files only for explicit shortcut/image cleanup.
 func AllArtFiles(dir string, id uint32) ([]string, error) {
 	var files []string
-	for _, kind := range append(append([]model.ArtworkKind{}, model.ArtworkKinds...), model.ArtworkKind("icon"), model.ArtworkKind("bigpicture")) {
+	for _, kind := range append(append([]model.ArtworkKind{}, model.ArtworkKinds...), model.ArtworkKind("icon"), model.ArtworkKind("bigpicture"), model.ArtworkKind("logo")) {
 		var paths []string
 		var e error
-		if kind == "icon" || kind == "bigpicture" {
+		if kind == "icon" || kind == "bigpicture" || kind == "logo" {
 			entries, err := os.ReadDir(dir)
 			if os.IsNotExist(err) {
 				continue

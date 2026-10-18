@@ -313,3 +313,48 @@ func TestNetworkSettingsPersistAndValidate(t *testing.T) {
 		t.Fatal("invalid proxy saved")
 	}
 }
+
+func TestHeroArtworkIsolationAndStatus(t *testing.T) {
+	s, g := fixture(t)
+	if _, err := s.Import(context.Background(), []ImportRequest{{Game: g}}, ""); err != nil {
+		t.Fatal(err)
+	}
+	var b bytes.Buffer
+	if err := png.Encode(&b, image.NewRGBA(image.Rect(0, 0, 16, 8))); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []model.ArtworkKind{model.Portrait, model.Landscape} {
+		if err := s.ApplyArtwork(g.ID, k, b.Bytes(), false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := s.ArtworkStatus(g.ID)
+	if len(before[model.Hero].Paths) != 0 {
+		t.Fatal("unexpected hero")
+	}
+	if err := s.ApplyArtwork(g.ID, model.Hero, b.Bytes(), false); err != nil {
+		t.Fatal(err)
+	}
+	after := s.ArtworkStatus(g.ID)
+	id := s.State.Accounts[s.Profile.AccountID][g.ID].AppID
+	target := filepath.Join(s.Profile.GridDir, steam.ArtBase(id, model.Hero)+".png")
+	if len(after[model.Hero].Paths) != 1 || after[model.Hero].Paths[0] != target {
+		t.Fatal(after)
+	}
+	for _, k := range []model.ArtworkKind{model.Portrait, model.Landscape} {
+		data, err := os.ReadFile(before[k].Paths[0])
+		if err != nil || !bytes.Equal(data, b.Bytes()) {
+			t.Fatal("other artwork changed", k, err)
+		}
+	}
+	s.Preflight = func() error { return errors.New("Steam running") }
+	if err := s.ApplyArtwork(g.ID, model.Hero, b.Bytes(), false); err == nil {
+		t.Fatal("write allowed")
+	}
+	if len(s.ArtworkStatus(g.ID)[model.Hero].Paths) != 1 {
+		t.Fatal("failed write lost status")
+	}
+	if s.ArtworkStatus("unknown")[model.Hero].Err == nil {
+		t.Fatal("unknown game accepted")
+	}
+}
