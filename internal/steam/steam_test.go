@@ -84,6 +84,11 @@ func TestRecentProfile(t *testing.T) {
 	if _, err = RecentProfile(dir); err == nil {
 		t.Fatal("accepted invalid steam ID")
 	}
+	write(`"users" { "76561197960265729" { "personaname" "lowercase" "timestamp" "8" } "76561197960265730" { "Timestamp" "2" } }`)
+	p, err = RecentProfile(dir)
+	if err != nil || p.AccountID != "1" || p.Name != "lowercase" {
+		t.Fatalf("lowercase login fields: %+v %v", p, err)
+	}
 }
 func TestArtworkCleanupBoundary(t *testing.T) {
 	dir := t.TempDir()

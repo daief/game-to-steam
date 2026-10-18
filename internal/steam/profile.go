@@ -101,6 +101,12 @@ func (n *textVDF) get(key string) string {
 	if c := n.children[key]; c != nil {
 		return c.value
 	}
+	// Recent Steam versions may write timestamp/other fields in lowercase.
+	for k, c := range n.children {
+		if strings.EqualFold(k, key) {
+			return c.value
+		}
+	}
 	return ""
 }
 

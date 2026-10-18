@@ -40,6 +40,32 @@ func MakeShortcut(g model.Game, launcher, executable, manifestDir string) (model
 	return sc, nil
 }
 
+// MakeAuthenticatedShortcut does not require an Epic launcher installation or
+// a current login: credentials are acquired at launch, never written to Steam.
+func MakeAuthenticatedShortcut(g model.Game, executable, manifestDir string) (model.Shortcut, error) {
+	if !g.ViaEpic() {
+		return epic.MakeShortcut(g, "")
+	}
+	if !filepath.IsAbs(executable) {
+		return model.Shortcut{}, fmt.Errorf("桥接程序必须使用绝对路径")
+	}
+	if info, err := os.Stat(executable); err != nil || info.IsDir() {
+		return model.Shortcut{}, fmt.Errorf("找不到桥接程序 %s；请将 epic-bridge.exe 与客户端放在同一目录，或运行 mise run build", executable)
+	}
+	if !filepath.IsAbs(g.Executable) || !inside(g.InstallDir, g.Executable) {
+		return model.Shortcut{}, fmt.Errorf("游戏入口必须位于安装目录内")
+	}
+	if info, err := os.Stat(g.Executable); err != nil || info.IsDir() {
+		return model.Shortcut{}, fmt.Errorf("游戏入口 EXE 不存在")
+	}
+	if !filepath.IsAbs(manifestDir) {
+		return model.Shortcut{}, fmt.Errorf("Epic 清单目录必须使用绝对路径")
+	}
+	return model.Shortcut{Name: g.Name, Exe: `"` + executable + `"`, StartDir: `"` + filepath.Dir(executable) + `"`,
+		Options: windows.ComposeCommandLine([]string{"--game", g.ID, "--manifest-dir", manifestDir, "--launch-mode", model.EpicAuthenticated}),
+		Icon:    g.Executable, Tags: []string{"Epic", "game-to-steam"}}, nil
+}
+
 // ShortcutGameID identifies only this bridge's CLI, not arbitrary programs with --game.
 func ShortcutGameID(sc model.Shortcut) string {
 	if !strings.EqualFold(filepath.Base(strings.Trim(sc.Exe, `"`)), "epic-bridge.exe") {

@@ -7,6 +7,8 @@ main.go / *_ui.go               原生界面、选择状态、弹窗和后台任
 internal/app                   导入、接管、删除、启动策略和补图的协调
 internal/model                 各模块共享的数据结构
 internal/epic                  本地 .item 清单、启动方式和 Epic URI
+internal/epicauth              独立登录、会话刷新、启动凭据与 DPAPI 存储
+internal/bridge                游戏直启、进程跟踪和独立桥接 EXE 支持
 internal/steam                 账号发现、VDF 编解码、AppID 和图片文件命名
 internal/artwork               SteamGridDB HTTP、图片验证和缓存
 internal/storage               JSON 状态、变更检查、备份和失败恢复
@@ -56,6 +58,10 @@ MyGo 的 `ui.Element` 只在当前构造阶段有效，不能放入持久状态�
 新快捷方式的 AppID 是 `CRC32(Exe + AppName) | 0x80000000`。已有条目接管后保留 AppID，修改启动路径也不重新计算，避免已有图片和关联丢失。
 
 启动设置通过 `PreviewLaunch` 生成策略草稿，通过 `SaveLaunch` 保存真实 Exe、StartDir、LaunchOptions 及强制选项。预览不写 Steam，可在 Steam 运行时使用；保存会比较打开编辑器时的原命令，拒绝覆盖外部变更。自定义命令以 Steam 文件为准，重复导入不会自动重写。
+
+需要 Epic 的游戏统一生成显式 --launch-mode authenticated 的桥接命令，裸 EXE 直启；勾选“强制开启 Epic 认证”可覆盖自动判断。无官方启动器选项或路径输入，旧 epicLaunchMode 字段忽略，已有自定义命令不自动覆盖。CLI 保留旧 launcher 模式仅用于历史命令兼容，不是客户端功能。
+
+客户端设置和桥接 CLI 共用 `bridge/auth/session.dpapi`，认证状态快照只包含显示名、有效期等非秘密字段。登录及忘记认证在后台执行，不写 Steam 或官方 Epic 配置。请求复用已保存的网络设置；DPAPI 限当前 Windows 用户，目录限制 ACL，令牌轮换有跨进程锁并先原子保存，才请求启动凭据。游戏附加参数放在 `--` 后，认证字段不能被覆盖。账号登录、刷新和游戏凭据协议依赖非官方启动器接口，需单独维护；不实现云存档同步或游戏库管理。
 
 图片写入账号的 `config/grid`：`<AppID>p.png` 为竖版、`<AppID>.png` 为横版、`<AppID>_hero.png` 为背景、`<AppID>_logo.png` 为 Logo。删除图片使用精确文件名匹配，不使用前缀递归删除，也不根据条目的外部 `icon` 路径删除源文件。
 

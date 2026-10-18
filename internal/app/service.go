@@ -15,6 +15,7 @@ import (
 	"game-to-steam/internal/artwork"
 	"game-to-steam/internal/bridge"
 	"game-to-steam/internal/epic"
+	"game-to-steam/internal/epicauth"
 	"game-to-steam/internal/model"
 	"game-to-steam/internal/network"
 	"game-to-steam/internal/steam"
@@ -32,6 +33,7 @@ type Service struct {
 	BridgePath string
 }
 type Snapshot struct {
+	EpicAuth  epicauth.Status
 	Games     []model.Game
 	Shortcuts []model.Shortcut
 	Managed   map[string]model.ManagedGame
@@ -58,9 +60,6 @@ func New(dir string) (*Service, error) {
 			s.Settings.EpicManifestPath = epic.DefaultManifestPath()
 		}
 	}
-	if s.Settings.EpicLauncherPath == "" {
-		s.Settings.EpicLauncherPath = system.EpicLauncherPath()
-	}
 	s.Settings = normalizeSettings(s.Settings)
 	executable, err := os.Executable()
 	if err != nil {
@@ -78,13 +77,13 @@ func New(dir string) (*Service, error) {
 
 func (s *Service) makeShortcut(g model.Game) (model.Shortcut, error) {
 	if !g.ViaEpic() {
-		return epic.MakeShortcut(g, s.State.Settings.EpicLauncherPath)
+		return epic.MakeShortcut(g, "")
 	}
-	return bridge.MakeShortcut(g, s.State.Settings.EpicLauncherPath, s.BridgePath, s.State.Settings.EpicManifestPath)
+	return bridge.MakeAuthenticatedShortcut(g, s.BridgePath, s.State.Settings.EpicManifestPath)
 }
 
 func (s *Service) Refresh() Snapshot {
-	out := Snapshot{Settings: s.State.Settings, Managed: map[string]model.ManagedGame{}}
+	out := Snapshot{Settings: s.State.Settings, Managed: map[string]model.ManagedGame{}, EpicAuth: s.authStore().Status()}
 	latest, stateErr := storage.Read(s.stateFile.Path)
 	if stateErr != nil {
 		out.Warnings = append(out.Warnings, stateErr.Error())

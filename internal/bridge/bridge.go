@@ -1,5 +1,5 @@
 // Package bridge implements an experimental Epic launch/session monitor.
-// It never edits Steam files, reads credentials, or terminates game/launcher processes.
+// It never edits Steam files or terminates game/launcher processes.
 package bridge
 
 import (
@@ -27,6 +27,10 @@ type Backend interface {
 type Config struct {
 	Game     model.Game
 	Launcher string
+	// Start overrides the launcher URI path for the authenticated experiment.
+	// Called only after path validation and the already-running-game check.
+	Start     func(context.Context) (uint32, error)
+	ExtraArgs []string // Authenticated mode only: forwarded to game after validation.
 	// WatchExe overrides the manifest's executable with a real game executable.
 	// Empty means same basename anywhere beneath this game's install directory.
 	WatchExe       string
@@ -66,7 +70,7 @@ func (c Config) matches(p Process) bool {
 }
 
 func (c Config) validate() error {
-	if c.Game.ID == "" || !filepath.IsAbs(c.Game.InstallDir) || !filepath.IsAbs(c.Launcher) {
+	if c.Game.ID == "" || !filepath.IsAbs(c.Game.InstallDir) || (c.Start == nil && !filepath.IsAbs(c.Launcher)) {
 		return fmt.Errorf("需要游戏标识、绝对安装目录及 Epic 启动器路径")
 	}
 	if c.WatchExe == "" && c.Game.Executable == "" {
@@ -118,8 +122,16 @@ func Run(ctx context.Context, config Config, backend Backend, log Logger) error 
 	for _, p := range before {
 		log.Printf("baseline pid=%d parent=%d image=%s", p.PID, p.ParentPID, p.Path)
 	}
-	pid, err := backend.Launch(c.Launcher, epic.LaunchURL(c.Game))
+	var pid uint32
+	if c.Start != nil {
+		pid, err = c.Start(ctx)
+	} else {
+		pid, err = backend.Launch(c.Launcher, epic.LaunchURL(c.Game))
+	}
 	if err != nil {
+		if c.Start != nil {
+			return fmt.Errorf("认证直启失败（不回退到 Epic 启动器）: %w", err)
+		}
 		return fmt.Errorf("隔离启动 Epic 失败（不回退到普通子进程启动）: %w", err)
 	}
 	log.Printf("launch-request pid=%d; waiting for game (timeout=%s)", pid, c.StartupTimeout)

@@ -20,38 +20,40 @@ import (
 )
 
 type app struct {
-	launchOpen                  bool
-	launchID                    string
-	launchDraft                 model.LaunchSettings
-	launchOriginal              model.Shortcut
-	launchGeneratedForce        bool
-	win                         *mygo.Window
-	svc                         *service.Service
-	snapshot                    service.Snapshot
-	page, query, status         string
-	busy                        bool
-	cancel                      context.CancelFunc
-	results                     []model.Result
-	selectedGames               map[string]bool
-	selectedShortcuts           map[uint32]bool
-	force                       map[string]bool
-	settings                    model.Settings
-	key                         string
-	deleteOpen, deleteImages    bool
-	deleteIDs                   []uint32
-	adoptOpen                   bool
-	imports                     []service.ImportRequest
-	importIndex                 int
-	adoptChoice                 string
-	adoptCandidates             []model.Shortcut
-	detailID, artKind, artQuery string
-	artGames                    []artwork.Game
-	artGameChoice               string
-	artImages                   []artwork.Image
-	thumbs                      map[int]*ui.Bitmap
-	preview                     *ui.Bitmap
-	previewData                 []byte
-	previewLabel                string
+	epicAuthOpen, epicForgetOpen bool
+	epicAuthCode                 string
+	launchOpen                   bool
+	launchID                     string
+	launchDraft                  model.LaunchSettings
+	launchOriginal               model.Shortcut
+	launchGeneratedForce         bool
+	win                          *mygo.Window
+	svc                          *service.Service
+	snapshot                     service.Snapshot
+	page, query, status          string
+	busy                         bool
+	cancel                       context.CancelFunc
+	results                      []model.Result
+	selectedGames                map[string]bool
+	selectedShortcuts            map[uint32]bool
+	force                        map[string]bool
+	settings                     model.Settings
+	key                          string
+	deleteOpen, deleteImages     bool
+	deleteIDs                    []uint32
+	adoptOpen                    bool
+	imports                      []service.ImportRequest
+	importIndex                  int
+	adoptChoice                  string
+	adoptCandidates              []model.Shortcut
+	detailID, artKind, artQuery  string
+	artGames                     []artwork.Game
+	artGameChoice                string
+	artImages                    []artwork.Image
+	thumbs                       map[int]*ui.Bitmap
+	preview                      *ui.Bitmap
+	previewData                  []byte
+	previewLabel                 string
 }
 
 func newApp() *app {
@@ -112,7 +114,7 @@ func (a *app) view(c *ui.Context) {
 			ui.Text(c, "game-to-steam").FontSize(18).Bold()
 			ui.Text(c, "游戏库工具 · 0.1.0").TextColor(t.TextMuted)
 			for _, page := range []string{"Epic 游戏", "Steam 快捷方式", "设置"} {
-				ui.Button(c, page).WidthPercent(100).Disabled(a.busy || a.adoptOpen || a.deleteOpen || a.launchOpen).OnClick(func() { a.page = page; a.query = ""; a.detailID = "" })
+				ui.Button(c, page).WidthPercent(100).Disabled(a.busy || a.adoptOpen || a.deleteOpen || a.launchOpen || a.epicAuthOpen || a.epicForgetOpen).OnClick(func() { a.page = page; a.query = ""; a.detailID = "" })
 			}
 			ui.Box(c).Grow(1)
 			ui.Text(c, "目标 Steam 账号").TextColor(t.TextMuted)
@@ -157,6 +159,14 @@ func (a *app) view(c *ui.Context) {
 			} else {
 				a.libraryView(c)
 			}
+			if a.epicAuthOpen {
+				a.epicAuthDialog(c)
+			} else {
+				a.epicAuthCode = ""
+			}
+			if a.epicForgetOpen {
+				a.epicForgetDialog(c)
+			}
 			if a.detailID == "" && (len(a.results) > 0 || len(a.snapshot.Warnings) > 0) {
 				ui.Scroll(c).Height(120).WidthPercent(100).Children(func() {
 					ui.Column(c).Gap(5).Children(func() {
@@ -181,6 +191,9 @@ func (a *app) view(c *ui.Context) {
 
 func (a *app) libraryView(c *ui.Context) {
 	isEpic := a.page == "Epic 游戏"
+	if isEpic {
+		ui.Text(c, a.snapshot.EpicAuth.Label()+"；需要认证的游戏请先在设置中登录。无云存档同步。").FontSize(12).TextColor(c.Theme().TextMuted)
+	}
 	ui.TextInput(c, &a.query).Label("搜索游戏").Placeholder("输入游戏名称筛选").Disabled(a.busy).WidthPercent(100)
 	ui.Row(c).Gap(10).Children(func() {
 		ui.Button(c, "全选可见").Disabled(a.busy).OnClick(func() {
@@ -276,7 +289,7 @@ func (a *app) gameRow(c *ui.Context, g model.Game) {
 		})
 		ui.Text(c, g.InstallDir).FontSize(12).TextColor(t.TextMuted)
 		force := a.force[g.ID]
-		ui.Checkbox(c.Key("force"), &force, "强制通过 Epic 启动").Disabled(a.busy).OnChange(func() {
+		ui.Checkbox(c.Key("force"), &force, "强制开启 Epic 认证").Disabled(a.busy).OnChange(func() {
 			if present {
 				a.openLaunch(g.ID)
 				a.launchDraft.ForceEpic = force
@@ -288,7 +301,7 @@ func (a *app) gameRow(c *ui.Context, g model.Game) {
 		via.ForceEpic = force
 		label := "自动策略：直接运行游戏 EXE"
 		if via.ViaEpic() {
-			label = "启动策略：通过桥接程序调用 Epic（游戏结束后结束 Steam 会话）"
+			label = "启动策略：独立认证后直接启动游戏（不启动 Epic 客户端）"
 		}
 		if present {
 			label = "当前命令可在“启动设置”中查看和编辑"
@@ -438,8 +451,6 @@ func (a *app) settingsView(c *ui.Context) {
 			ui.TextInput(c, &a.settings.SteamPath).Label("Steam 安装目录").Disabled(a.busy).WidthPercent(100)
 			ui.Text(c, "Epic 安装清单目录")
 			ui.TextInput(c, &a.settings.EpicManifestPath).Label("Epic 安装清单目录").Disabled(a.busy).WidthPercent(100)
-			ui.Text(c, "EpicGamesLauncher.exe 路径")
-			ui.TextInput(c, &a.settings.EpicLauncherPath).Label("Epic 启动器路径").Disabled(a.busy).WidthPercent(100)
 			ui.Text(c, "网络")
 			mode := networkLabel(a.settings.Network.Mode)
 			ui.Select(c, &mode, []string{"直连", "系统代理", "指定代理地址"}).Label("网络模式").Disabled(a.busy).OnChange(func() {
@@ -455,7 +466,7 @@ func (a *app) settingsView(c *ui.Context) {
 			if a.settings.Network.Mode == network.Custom {
 				ui.TextInput(c, &a.settings.Network.ProxyURL).Label("代理地址").Placeholder("http://127.0.0.1:7890").Disabled(a.busy).WidthPercent(100)
 			}
-			ui.Text(c, "保存后用于封面搜索和下载；系统代理读取 Windows 设置，包含自动配置。").FontSize(12).TextColor(c.Theme().TextMuted)
+			ui.Text(c, "保存后用于 Epic 认证和封面请求；系统代理读取 Windows 设置，包含自动配置。").FontSize(12).TextColor(c.Theme().TextMuted)
 			ui.Text(c, "SteamGridDB API Key（可选）")
 			ui.TextInput(c, &a.key).Password().Label("SteamGridDB API Key").Disabled(a.busy).WidthPercent(100)
 			ui.Link(c, "获取 SteamGridDB API Key", "https://www.steamgriddb.com/profile/preferences/api")
@@ -472,6 +483,7 @@ func (a *app) settingsView(c *ui.Context) {
 					return func() { a.accept(snap); a.key = key }, err
 				})
 			})
+			a.epicAuthSettings(c)
 			ui.Text(c, "数据与备份目录："+a.svc.Dir).FontSize(12)
 			ui.Button(c, "打开数据与备份目录").OnClick(func() {
 				if err := system.Open(a.svc.Dir); err != nil {

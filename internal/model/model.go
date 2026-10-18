@@ -41,6 +41,10 @@ type Settings struct {
 	EpicLauncherPath string          `json:"epicLauncherPath"`
 }
 
+const (
+	EpicAuthenticated = "authenticated"
+)
+
 type NetworkSettings struct {
 	Mode     string `json:"mode"`
 	ProxyURL string `json:"proxyURL"`

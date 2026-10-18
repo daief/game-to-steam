@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	service "game-to-steam/internal/app"
+	"game-to-steam/internal/epicauth"
 	"game-to-steam/internal/model"
 	"github.com/egoist/mygo/ui"
 )
@@ -86,8 +87,8 @@ func TestLaunchEditorLoadsActualCommandAndKeepsCancelledChangesLocal(t *testing.
 	a.snapshot.Shortcuts[0] = model.Shortcut{AppID: 1, Name: "Custom name", Exe: `"C:\custom.exe"`, StartDir: `"C:\"`, Options: "--original"}
 	a.openLaunch("one")
 	tt := ui.NewTester(a.view, 1100, 780)
-	if !tt.HasText("已知限制：桥接下 Steam Input 自定义映射疑似未生效，Overlay 显示可能不同；手柄原生输入正常不代表 Steam Input 生效。") {
-		t.Fatal("missing bridge compatibility warning")
+	if !tt.HasText("桥接需先在设置中登录 Epic，不启动官方客户端，也不提供云存档同步。") {
+		t.Fatal("missing authentication/cloud-save guidance")
 	}
 	if a.launchDraft.Options != "--original" || a.launchDraft.Exe != `"C:\custom.exe"` {
 		t.Fatal("editor did not load Steam fields")
@@ -99,7 +100,7 @@ func TestLaunchEditorLoadsActualCommandAndKeepsCancelledChangesLocal(t *testing.
 	if !strings.Contains(a.launchDraft.Options, "--added") {
 		t.Fatal(a.launchDraft.Options)
 	}
-	if err := tt.Click("强制通过 Epic 启动（当前快捷方式）"); err != nil {
+	if err := tt.Click("强制开启 Epic 认证（当前快捷方式）"); err != nil {
 		t.Fatal(err)
 	}
 	if !tt.HasText("强制选项已改变，请先按策略生成命令，再调整参数。") {
@@ -130,5 +131,49 @@ func TestNetworkSettingsModeSelection(t *testing.T) {
 	}
 	if a.settings.Network.Mode != "direct" {
 		t.Fatal(a.settings.Network)
+	}
+}
+
+func TestEpicLoginDialogClearsCodeOnCancel(t *testing.T) {
+	a := testApp(t)
+	a.epicAuthOpen = true
+	a.epicAuthCode = "sensitive-code"
+	tt := ui.NewTester(a.view, 1100, 780)
+	if !tt.HasText("登录 Epic 独立认证") {
+		t.Fatal("missing login dialog")
+	}
+	if tt.HasText("sensitive-code") {
+		t.Fatal("authorization code rendered as plain text")
+	}
+	if err := tt.Click("取消登录"); err != nil {
+		t.Fatal(err)
+	}
+	if a.epicAuthOpen || a.epicAuthCode != "" {
+		t.Fatal("auth draft not cleared")
+	}
+}
+
+func TestEpicAuthSettingsAndForgetConfirmation(t *testing.T) {
+	a := testApp(t)
+	a.page = "设置"
+	a.snapshot.EpicAuth = epicauth.Status{State: "ready", DisplayName: "Test user"}
+	tt := ui.NewTester(a.view, 1100, 1600)
+	if !tt.HasText("已登录：Test user（本地状态）") {
+		t.Fatal("missing auth status")
+	}
+	if err := tt.Click("移除桥接登录"); err != nil {
+		t.Fatal(err)
+	}
+	if !a.epicForgetOpen {
+		t.Fatal("forget requires confirmation")
+	}
+	if err := tt.Click("保留登录"); err != nil {
+		t.Fatal(err)
+	}
+	if a.epicForgetOpen {
+		t.Fatal("forget cancel failed")
+	}
+	if tt.HasText("官方 Epic 启动器") || tt.HasText("Epic 启动模式") || tt.HasText("EpicGamesLauncher.exe 路径") {
+		t.Fatal("removed launcher controls still visible")
 	}
 }

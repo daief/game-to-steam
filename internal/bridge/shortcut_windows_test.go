@@ -66,3 +66,34 @@ func TestShortcutGameIDOnlyRecognizesBridge(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthenticatedShortcutDoesNotNeedLauncherOrLogin(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "中文 space")
+	if err := os.Mkdir(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	exe := filepath.Join(dir, "game.exe")
+	bridge := filepath.Join(dir, "epic-bridge.exe")
+	for _, p := range []string{exe, bridge} {
+		if err := os.WriteFile(p, nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g := model.Game{ID: "ns:item:app", Name: "Game", InstallDir: dir, Executable: exe, RequiresAuth: true}
+	sc, err := MakeAuthenticatedShortcut(g, bridge, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args, err := windows.DecomposeCommandLine("bridge " + sc.Options)
+	want := []string{"bridge", "--game", g.ID, "--manifest-dir", dir, "--launch-mode", "authenticated"}
+	if err != nil || !reflect.DeepEqual(args, want) || sc.Icon != exe {
+		t.Fatal(sc, args, err)
+	}
+	if _, err = MakeAuthenticatedShortcut(g, "missing", dir); err == nil {
+		t.Fatal("accepted missing bridge")
+	}
+	g.Executable = filepath.Join(dir, "missing.exe")
+	if _, err = MakeAuthenticatedShortcut(g, bridge, dir); err == nil {
+		t.Fatal("accepted missing game")
+	}
+}

@@ -42,6 +42,47 @@ func TestEpicLaunchPolicyUsesBridge(t *testing.T) {
 			if sc.Exe != `"`+s.BridgePath+`"` || bridge.ShortcutGameID(sc) != g.ID {
 				t.Fatal(sc)
 			}
+			if !strings.Contains(sc.Options, "--launch-mode authenticated") || strings.Contains(sc.Options, "--launcher") {
+				t.Fatal(sc.Options)
+			}
+		})
+	}
+}
+
+func TestLegacyEpicModeIsIgnored(t *testing.T) {
+	for _, mode := range []string{"launcher", "authenticated", "unknown"} {
+		t.Run(mode, func(t *testing.T) {
+			s, g := fixture(t)
+			g.RequiresAuth = true
+			data, err := json.Marshal(s.State.Settings)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var legacy map[string]any
+			if err = json.Unmarshal(data, &legacy); err != nil {
+				t.Fatal(err)
+			}
+			legacy["epicLaunchMode"] = mode
+			legacy["epicLauncherPath"] = "missing-launcher.exe"
+			data, _ = json.Marshal(legacy)
+			var settings model.Settings
+			if err = json.Unmarshal(data, &settings); err != nil {
+				t.Fatal(err)
+			}
+			if err = s.SaveSettings(settings); err != nil {
+				t.Fatal(err)
+			}
+			sc, err := s.makeShortcut(g)
+			if err != nil || !strings.Contains(sc.Options, "--launch-mode authenticated") || strings.Contains(sc.Options, "--launcher") {
+				t.Fatal(sc, err)
+			}
+			saved, err := os.ReadFile(filepath.Join(s.Dir, "state.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(saved), "epicLaunchMode") {
+				t.Fatal("deprecated launch mode persisted")
+			}
 		})
 	}
 }

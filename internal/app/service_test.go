@@ -282,7 +282,7 @@ func TestPreviewLaunchDoesNotWriteAndRespectsForce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !draft.ForceEpic || draft.Exe != `"`+s.BridgePath+`"` || !strings.Contains(draft.Options, "--game ns:item:app") || !strings.Contains(draft.Options, "--launcher "+launcher) {
+	if !draft.ForceEpic || draft.Exe != `"`+s.BridgePath+`"` || !strings.Contains(draft.Options, "--game ns:item:app") || !strings.Contains(draft.Options, "--launch-mode authenticated") || strings.Contains(draft.Options, "--launcher") {
 		t.Fatal(draft)
 	}
 	if got := list(t, s)[0]; got.Exe != original.Exe || got.Options != original.Options {

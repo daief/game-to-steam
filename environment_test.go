@@ -97,4 +97,15 @@ func TestPreviewArtifact(t *testing.T) {
 	if e = png.Encode(settingsFile, settingsView.Image()); e != nil {
 		t.Fatal(e)
 	}
+	a.epicAuthOpen = true
+	a.epicAuthCode = "preview-not-a-real-code"
+	authView := ui.NewTester(a.view, 1100, 780)
+	authFile, e := os.Create(filepath.Join(dir, "auth-preview.png"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer authFile.Close()
+	if e = png.Encode(authFile, authView.Image()); e != nil {
+		t.Fatal(e)
+	}
 }
