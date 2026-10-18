@@ -323,6 +323,9 @@ func (s *Service) Import(ctx context.Context, requests []ImportRequest, key stri
 			sc, err := s.makeShortcut(g)
 			if err == nil {
 				sc.AppID = steam.AppID(sc.Exe, sc.Name)
+				if history, ok := state.PlaytimeHistory[s.Profile.AccountID][g.ID]; ok {
+					sc.AppID = history.AppID
+				}
 				for _, old := range current {
 					if old.AppID == sc.AppID {
 						err = fmt.Errorf("AppID 冲突，停止导入该游戏")
@@ -344,7 +347,30 @@ func (s *Service) Import(ctx context.Context, requests []ImportRequest, key stri
 		}
 		results = append(results, result)
 	}
-	if e = s.commit(state, []storage.Change{{Before: before, Data: steam.Encode(root)}}); e != nil {
+	changes := []storage.Change{{Before: before, Data: steam.Encode(root)}}
+	var restore map[string]uint64
+	for _, entry := range imported {
+		if history, ok := state.PlaytimeHistory[s.Profile.AccountID][entry.Game.ID]; ok {
+			if restore == nil {
+				restore = map[string]uint64{}
+			}
+			for id, minutes := range history.Minutes {
+				restore[id] = minutes
+			}
+		}
+	}
+	if len(restore) > 0 {
+		config, err := storage.Read(filepath.Join(s.Profile.ConfigDir, "localconfig.vdf"))
+		if err != nil {
+			return nil, err
+		}
+		data, err := steam.RestorePlaytime(config.Data, restore)
+		if err != nil {
+			return nil, fmt.Errorf("无法恢复累计时长，未导入: %w", err)
+		}
+		changes = append(changes, storage.Change{Before: config, Data: data})
+	}
+	if e = s.commit(state, changes); e != nil {
 		return results, e
 	}
 	if key == "" {
@@ -404,8 +430,40 @@ func (s *Service) Delete(ids []uint32, cleanup bool) error {
 	}
 	state := cloneState(s.State)
 	managed := s.managed(&state)
+	var playtimeConfig *storage.Snapshot
 	for id, m := range managed {
 		if selected[m.AppID] {
+			if playtimeConfig == nil {
+				config, err := storage.Read(filepath.Join(s.Profile.ConfigDir, "localconfig.vdf"))
+				if err != nil {
+					return err
+				}
+				playtimeConfig = &config
+				// Include the source in the transaction backup and conflict checks.
+				if config.Exists {
+					changes = append(changes, storage.Change{Before: config, Data: config.Data})
+				}
+			}
+			minutes, err := steam.ReadPlaytime(playtimeConfig.Data, m.AppID)
+			if err != nil {
+				return fmt.Errorf("无法保存累计时长，未删除: %w", err)
+			}
+			if state.PlaytimeHistory == nil {
+				state.PlaytimeHistory = map[string]map[string]model.SteamPlaytime{}
+			}
+			if state.PlaytimeHistory[s.Profile.AccountID] == nil {
+				state.PlaytimeHistory[s.Profile.AccountID] = map[string]model.SteamPlaytime{}
+			}
+			history := state.PlaytimeHistory[s.Profile.AccountID][id]
+			if history.AppID != m.AppID || history.Minutes == nil {
+				history = model.SteamPlaytime{AppID: m.AppID, Minutes: map[string]uint64{}}
+			}
+			for key, value := range minutes {
+				if value > history.Minutes[key] {
+					history.Minutes[key] = value
+				}
+			}
+			state.PlaytimeHistory[s.Profile.AccountID][id] = history
 			delete(managed, id)
 		}
 	}

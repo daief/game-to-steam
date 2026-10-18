@@ -30,6 +30,7 @@ OutputBaseFilename=game-to-steam-{#AppVersion}-windows-amd64-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\assets\icon.ico
 UninstallDisplayIcon={app}\game-to-steam.exe
 CloseApplications=no
 RestartApplications=no
@@ -46,3 +47,6 @@ Source: "{#SourceDir}\epic-bridge.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autodesktop}\game-to-steam"; Filename: "{app}\game-to-steam.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+
+[Run]
+Filename: "{app}\game-to-steam.exe"; WorkingDir: "{app}"; Description: "Launch game-to-steam"; Flags: nowait postinstall skipifsilent

@@ -28,6 +28,7 @@
 - 修改“强制开启 Epic 认证”后先点击“按策略生成命令”，再调整参数并保存。勾选后即使清单认为可裸 EXE 启动，也强制认证桥接；取消后恢复自动判断，游戏本身需要认证时仍走桥接。生成只替换草稿，未改策略时可直接编辑现有命令。
 - 裸 EXE 参数直接传给游戏；认证桥接参数包括 `--watch-exe`、`--startup-timeout`、`--exit-grace`，游戏附加参数放在 `--` 后，例如 `-- -windowed`，不得覆盖认证字段。保存前需退出 Steam；AppID、名称、图片、标签及未知字段保留，重复导入不会覆盖手动命令。打开编辑器后发生的外部命令修改会阻止保存。
 - “Steam 快捷方式”列出当前账号的全部非 Steam 游戏，支持搜索与批量删除。删除不会卸载游戏。
+- 通过本工具删除已导入或接管的 Epic 游戏时，会按 Steam 账号保存原 AppID 及 `localconfig.vdf` 中的累计时长（`Playtime`）；重新导入同一 Epic 游戏时恢复，不覆盖 Steam 已有的更高时长。不恢复已过期的“两周内时长”。记录保存在本工具的 `state.json`，不适用于直接在 Steam 中删除的条目；此前已丢失且无记录的时长无法自动找回。已通过模拟删除/重新导入测试，真实 Steam 显示仍待验证。
 - 删除确认框的“同时清理图片”默认勾选，可手动取消。清理仅删除 Steam `grid` 目录中与所选 AppID 精确对应的自定义图片，不删除游戏目录、外部图标或本地选图的源文件。
 - 仅已导入或明确接管的 Epic 游戏提供“封面与启动”管理。未安装但仍有管理关联的条目，也可从 Steam 列表进入封面管理。
 - 在设置中填写 [SteamGridDB API Key](https://www.steamgriddb.com/profile/preferences/api)，新导入游戏会自动补齐缺失的横竖封面、背景和 Logo；已有图片保留。接管时不自动补图。
@@ -62,6 +63,9 @@ mise run test     # 核心服务及原生 UI 测试
 mise run check    # Go 与 MyGo 静态检查
 mise run preview  # build/ui-preview.png，示例数据的界面预览
 ```
+
+应用图标原图为 `assets/icon.png`；更换后执行 `go generate ./assets`，重新生成多尺寸 `assets/icon.ico` 和根目录的 `icon_windows_amd64.syso`，将三者一同纳入 Git。普通 `go build` 和发布构建会自动嵌入资源，窗口及安装包也使用该图标。
+
 
 `mise.toml` 的 `[env]` 为这些任务设置 `GOPROXY=https://goproxy.cn,direct`，使用本机已安装的 Go，不自动安装新工具。逗号表示仅在代理返回 404/410 时尝试直接从源码仓库获取；连接超时不会触发 `direct` 回退。项目配置不修改 `go env -w` 的全局设置。
 

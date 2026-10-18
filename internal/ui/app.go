@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo"
 	nativeui "github.com/egoist/mygo/ui"
 
+	"game-to-steam/assets"
 	service "game-to-steam/internal/app"
 	"game-to-steam/internal/artwork"
 	"game-to-steam/internal/model"
@@ -400,6 +401,8 @@ func (a *app) dialogs(c *nativeui.Context) {
 	nativeui.Modal(c.Key("delete-dialog"), &a.deleteOpen, func() {
 		nativeui.Text(c, fmt.Sprintf("删除 %d 个 Steam 快捷方式？", len(a.deleteIDs))).FontSize(20).Bold()
 		nativeui.Text(c, "删除后游戏本体仍然保留。")
+		nativeui.Text(c, "已管理的 Epic 游戏会保留本地累计时长，供重新导入时恢复。")
+		nativeui.Text(c, "已管理的 Epic 游戏会保留本地累计时长，供重新导入时恢复。")
 		nativeui.Scroll(c).Width(620).MaxHeight(180).Children(func() {
 			nativeui.Column(c).Gap(4).Children(func() {
 				for _, sc := range a.snapshot.Shortcuts {
@@ -549,6 +552,9 @@ func Run() error {
 	}
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "game-to-steam", Width: 1280, Height: 900, MinWidth: 1100, MinHeight: 800, StateKey: "main", Content: nativeui.View(a.view)})
+		if err := a.win.SetIcon(assets.Icon); err != nil {
+			a.status = "设置窗口图标失败: " + err.Error()
+		}
 		// MyGo restores saved outer bounds without clamping them to new minima.
 		// Ensure old window state cannot collapse the artwork browser on startup.
 		ensureMainWindowSize(a.win)

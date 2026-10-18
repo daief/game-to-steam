@@ -20,12 +20,14 @@
 - 整套原生 UI 位于 internal/ui（app、artwork、launch、auth 及对应测试），根目录 main.go 只调用 ui.Run 并处理启动错误。MyGo 控件包统一别名 nativeui；UI 预览和只读环境测试命令指向 ./internal/ui，相对预览路径仍以项目根目录为基准。
 - 设置中的路径统一为 Windows 反斜杠和大写盘符。Epic 启动器优先从 com.epicgames.launcher 协议命令解析，再尝试安装记录和默认目录；仅检查候选文件，不递归扫描磁盘。自定义安装位置的 InstallLocation 可能缺失，协议记录仍有效。
 - shortcuts.vdf 保留有序字段、未知字段和未操作条目。不可解析文件禁止覆盖。新 AppID 使用 CRC32(Exe+AppName) 设置最高位，已有 AppID 保持不变。
+- 本工具删除已管理 Epic 游戏时，将原 AppID 和 localconfig.vdf 的 Apps 下有符号/无符号 ID 对应 Playtime 存入 state.json 的按账号/游戏隔离 playtimeHistory；重导入复用 ID、按最大值恢复累计分钟，不恢复易过期的 Playtime2wks，不覆盖其他 Steam 设置。文本 VDF 按字节位置修改，歧义/解析失败拒绝操作，源配置纳入删除事务备份。仅覆盖本工具删除，旧丢失时长无记录不可恢复；模拟重启/重导入、ID 冲突及数据保留测试通过，真实 Steam 显示待验收。
 - UI 状态只在主线程修改，后台任务串行访问服务，用 Window.Update 回传。取消仅停止后续任务，不撤销成功操作。
 - 设置与按账号隔离的管理关联位于 %AppData%/game-to-steam/state.json，图片缓存和备份也在此目录。API Key 使用 Windows 凭据管理器，禁止写入状态文件、日志或仓库。
 - 网络设置为直连/系统代理/指定地址，旧配置默认系统代理。所有封面请求共享已保存配置；直连忽略 HTTP_PROXY/HTTPS_PROXY。Windows 系统代理用 WinHTTP 读取当前用户设置，包含协议映射、绕过列表、PAC 和 WPAD；自定义支持 HTTP/HTTPS/SOCKS5/SOCKS5H，不接受 URL 凭据。使用本机 WinHTTP 与临时 PAC 服务验证，无需修改系统代理。
 - 修改前检查 Steam 进程、目标账号及文件快照，先备份全部目标，再以同目录临时文件和 MoveFileEx 替换。普通失败尝试恢复；断电/强制结束不保证跨文件原子性，须按备份清单恢复。
 - 图片清理仅精确匹配目标 AppID 的 grid 文件名，不根据外部 icon 路径删除源文件。
 - mise build 先运行 bridge-build，再直接 go build 客户端，任务环境指定 windows/amd64；两个 EXE 同目录发布，桥接保留诊断控制台。dev 同样预构建桥接，通过 GAME_TO_STEAM_BRIDGE_PATH 指定其路径。无 build.ps1，避免完整 MyGo 打包自动下载 NSIS；无签名或自动更新。
+- 图标原图 assets/icon.png；go generate ./assets 用 cmd/icon-gen（已有 x/image 缩放依赖）生成 16–256 九尺寸 PNG ICO 和根目录 icon_windows_amd64.syso（纯 Go COFF 图标资源），两项生成物随源码保存，普通 go build/CI 自动嵌入；窗口 SetIcon 使用嵌入 PNG，mygo.json 和 Inno Setup 也已配置。已从编译 EXE 提取确认图标。
 - .github/workflows/release.yml 在 GitHub Release published 时构建对应标签，也可手动指定已有 Release 标签重跑。Windows 2025 runner 使用 go.mod 版本和预装 Inno Setup；测试/检查后上传英文 setup.exe、包含两个 EXE 的便携 ZIP 和 SHA256SUMS.txt，不创建 Release。标签支持 v1.2.3 / v1.2.3-beta.1（v 可省略），程序 ui.Version 与安装包版本从标签注入。installer/setup.iss 固定 AppId，当前用户安装到 LocalAppData/Programs，可选路径和桌面快捷方式；卸载不清理应用数据、凭据或 Steam。已本地编译安装包并验证 ZIP/校验和、actionlint 和工作流 PowerShell 语法；未触发真实 GitHub 发布。
 - 主窗口默认 1280×900、最小 1100×800，按用户决定优先提供足够的图片浏览空间，不再适配 900×640。MyGo 恢复旧 StateKey 尺寸不按新最小值钳制，启动后显式确保内容区至少 1100×800；已用模拟接口下载 WebP 的真实原生窗口验证旧 900×640 状态恢复与图片显示。
 - Go 要求 1.27.1+。mise.toml 提供 dev/build/test/check/preview 任务，使用本机 Go；项目环境设置 GOPROXY=https://goproxy.cn,direct，未修改全局 Go 设置。按用户要求，命令默认直接使用 `go`，不预设 `MISE_GO_VERSION`，不使用 go.exe 绝对路径；历史 shim 排障记录不能作为当前环境故障的依据。

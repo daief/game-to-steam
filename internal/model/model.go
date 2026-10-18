@@ -54,6 +54,14 @@ type State struct {
 	Settings Settings `json:"settings"`
 	// Account IDs separate associations for different Steam accounts.
 	Accounts map[string]map[string]ManagedGame `json:"accounts"`
+	// Deleted Epic games retain their identity and cumulative Steam minutes.
+	PlaytimeHistory map[string]map[string]SteamPlaytime `json:"playtimeHistory,omitempty"`
+}
+
+type SteamPlaytime struct {
+	AppID uint32 `json:"appID"`
+	// Steam versions can use signed or unsigned shortcut IDs in localconfig.
+	Minutes map[string]uint64 `json:"minutes,omitempty"`
 }
 
 type ArtworkKind string
