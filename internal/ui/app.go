@@ -20,7 +20,7 @@ import (
 )
 
 // Version is set from the release tag by the release build.
-var Version = "0.1.0"
+var Version = "0.2.0"
 
 type app struct {
 	epicAuthOpen, epicForgetOpen bool

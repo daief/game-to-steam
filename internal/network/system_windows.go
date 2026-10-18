@@ -59,7 +59,7 @@ func systemProxy(req *http.Request) (*url.URL, error) {
 
 func resolveSystemConfig(req *http.Request, cfg ieConfig) (*url.URL, error) {
 	if cfg.AutoURL != nil || cfg.AutoDetect != 0 {
-		agent, _ := windows.UTF16PtrFromString("game-to-steam/0.1.0")
+	agent, _ := windows.UTF16PtrFromString("game-to-steam/0.2.0")
 		h, _, err := httpOpen.Call(uintptr(unsafe.Pointer(agent)), 1, 0, 0, 0)
 		if h == 0 {
 			return nil, fmt.Errorf("无法初始化系统代理解析: %w", err)
