@@ -25,7 +25,8 @@
 - 网络设置为直连/系统代理/指定地址，旧配置默认系统代理。所有封面请求共享已保存配置；直连忽略 HTTP_PROXY/HTTPS_PROXY。Windows 系统代理用 WinHTTP 读取当前用户设置，包含协议映射、绕过列表、PAC 和 WPAD；自定义支持 HTTP/HTTPS/SOCKS5/SOCKS5H，不接受 URL 凭据。使用本机 WinHTTP 与临时 PAC 服务验证，无需修改系统代理。
 - 修改前检查 Steam 进程、目标账号及文件快照，先备份全部目标，再以同目录临时文件和 MoveFileEx 替换。普通失败尝试恢复；断电/强制结束不保证跨文件原子性，须按备份清单恢复。
 - 图片清理仅精确匹配目标 AppID 的 grid 文件名，不根据外部 icon 路径删除源文件。
-- mise build 先运行 bridge-build，再直接 go build 客户端，任务环境指定 windows/amd64；两个 EXE 同目录发布，桥接保留诊断控制台。dev 同样预构建桥接，通过 GAME_TO_STEAM_BRIDGE_PATH 指定其路径。无 build.ps1，避免完整 MyGo 打包自动下载 NSIS；首版无安装包、签名或自动更新。
+- mise build 先运行 bridge-build，再直接 go build 客户端，任务环境指定 windows/amd64；两个 EXE 同目录发布，桥接保留诊断控制台。dev 同样预构建桥接，通过 GAME_TO_STEAM_BRIDGE_PATH 指定其路径。无 build.ps1，避免完整 MyGo 打包自动下载 NSIS；无签名或自动更新。
+- .github/workflows/release.yml 在 GitHub Release published 时构建对应标签，也可手动指定已有 Release 标签重跑。Windows 2025 runner 使用 go.mod 版本和预装 Inno Setup；测试/检查后上传英文 setup.exe、包含两个 EXE 的便携 ZIP 和 SHA256SUMS.txt，不创建 Release。标签支持 v1.2.3 / v1.2.3-beta.1（v 可省略），程序 ui.Version 与安装包版本从标签注入。installer/setup.iss 固定 AppId，当前用户安装到 LocalAppData/Programs，可选路径和桌面快捷方式；卸载不清理应用数据、凭据或 Steam。已本地编译安装包并验证 ZIP/校验和、actionlint 和工作流 PowerShell 语法；未触发真实 GitHub 发布。
 - 主窗口默认 1280×900、最小 1100×800，按用户决定优先提供足够的图片浏览空间，不再适配 900×640。MyGo 恢复旧 StateKey 尺寸不按新最小值钳制，启动后显式确保内容区至少 1100×800；已用模拟接口下载 WebP 的真实原生窗口验证旧 900×640 状态恢复与图片显示。
 - Go 要求 1.27.1+。mise.toml 提供 dev/build/test/check/preview 任务，使用本机 Go；项目环境设置 GOPROXY=https://goproxy.cn,direct，未修改全局 Go 设置。按用户要求，命令默认直接使用 `go`，不预设 `MISE_GO_VERSION`，不使用 go.exe 绝对路径；历史 shim 排障记录不能作为当前环境故障的依据。
 

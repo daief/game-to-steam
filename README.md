@@ -136,3 +136,24 @@ Steam 写操作前检查 `steam.exe` 已退出并再次确认目标账号。无�
 当前已通过核心服务、原生 UI 交互及静态检查，验证本机安装清单和 Steam 账号的只读发现，并完成 EXE 原生窗口启动与关闭检查。真实 Steam 导入后启动游戏、以及有效 API Key 下的在线选图，需要在实际使用环境中验收。
 
 参考：[BoilR](https://github.com/PhilipK/BoilR)、[MyGo 原生 UI](https://mygo.egoist.dev/docs/ui)、[SteamGridDB API](https://www.steamgriddb.com/api/v2)。本项目按需求独立实现 Go 服务，没有引入 BoilR Rust 源码。
+
+
+## Release builds
+
+Publish a GitHub Release with a version tag such as `v1.2.3` or `v1.2.3-beta.1` to run the **Release Windows** workflow. It builds the exact tagged commit, runs tests and static checks, and uploads these assets to that release:
+
+- `game-to-steam-1.2.3-windows-amd64-setup.exe`: English Inno Setup installer with an installation-directory page and an optional desktop shortcut.
+- `game-to-steam-1.2.3-windows-amd64.zip`: portable application and Epic bridge in the same directory.
+- `SHA256SUMS.txt`: SHA-256 checksums for both downloads.
+
+The installer defaults to `%LocalAppData%\Programs\game-to-steam` and installs for the current user without administrator privileges. Both executables are installed together. Uninstalling removes the installed program and its shortcut; application settings, credentials, and Steam files are preserved. The application itself keeps its existing Chinese interface.
+
+To rebuild assets for an existing release, run **Release Windows** manually and enter its tag. This replaces assets with the same filenames and does not create a new release. The workflow uses the repository's built-in `GITHUB_TOKEN`; no extra secret is required. The workflow must be included in the tagged commit.
+
+For a local installer build, first build both executables, then run Inno Setup 6's compiler:
+
+```powershell
+ISCC.exe /DAppVersion=1.2.3 /DAppVersionNumeric=1.2.3.0 installer/setup.iss
+```
+
+The installer is written to `dist/`. Keep the same `AppId` in `installer/setup.iss` across versions so upgrades recognize the existing installation.

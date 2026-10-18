@@ -1,0 +1,100 @@
+name: Release Windows
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (for example, v1.2.3)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-windows-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Build and upload Windows assets
+    runs-on: windows-2025
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GOOS: windows
+      GOARCH: amd64
+      CGO_ENABLED: '0'
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Read release version
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v?(?<numeric>(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))(?<prerelease>-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$') {
+            throw 'Use a version tag such as v1.2.3 or v1.2.3-beta.1.'
+          }
+          $numeric = $Matches.numeric
+          $version = $numeric + $Matches.prerelease
+          foreach ($part in $numeric.Split('.')) {
+            if ([long]$part -gt 65535) { throw 'Version components must not exceed 65535.' }
+          }
+          "APP_VERSION=$version" >> $env:GITHUB_ENV
+          "APP_VERSION_NUMERIC=$numeric.0" >> $env:GITHUB_ENV
+
+      - name: Test
+        run: go test ./...
+
+      - name: Check Go code
+        run: go vet ./...
+
+      - name: Check native UI
+        run: go tool mygo vet
+
+      - name: Build Epic bridge
+        run: go build -mod=readonly -trimpath -ldflags='-s -w' -o build/windows-amd64/epic-bridge.exe ./cmd/epic-bridge
+
+      - name: Build desktop application
+        run: go build -mod=readonly -trimpath -ldflags="-s -w -H=windowsgui -X game-to-steam/internal/ui.Version=$env:APP_VERSION" -o build/windows-amd64/game-to-steam.exe .
+
+      - name: Build English setup executable
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
+          if (-not (Test-Path -LiteralPath $compiler)) {
+            throw 'The Windows runner does not have the Inno Setup compiler installed.'
+          }
+          & $compiler "/DAppVersion=$env:APP_VERSION" "/DAppVersionNumeric=$env:APP_VERSION_NUMERIC" "/DSourceDir=$env:GITHUB_WORKSPACE/build/windows-amd64" "/DOutputDir=$env:GITHUB_WORKSPACE/dist" installer/setup.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed.' }
+
+      - name: Create portable archive and checksums
+        run: |
+          $archive = "dist/game-to-steam-$env:APP_VERSION-windows-amd64.zip"
+          Compress-Archive -LiteralPath build/windows-amd64/game-to-steam.exe,build/windows-amd64/epic-bridge.exe -DestinationPath $archive
+          $checksums = Get-ChildItem dist -File | Where-Object { $_.Extension -in '.exe', '.zip' } | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          $checksums | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload $env:RELEASE_TAG "dist/game-to-steam-$env:APP_VERSION-windows-amd64-setup.exe" "dist/game-to-steam-$env:APP_VERSION-windows-amd64.zip" dist/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --clobber

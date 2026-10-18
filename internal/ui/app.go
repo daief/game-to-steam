@@ -18,6 +18,9 @@ import (
 	"game-to-steam/internal/system"
 )
 
+// Version is set from the release tag by the release build.
+var Version = "0.1.0"
+
 type app struct {
 	epicAuthOpen, epicForgetOpen bool
 	epicAuthCode                 string
@@ -110,7 +113,7 @@ func (a *app) view(c *nativeui.Context) {
 	nativeui.Row(c).Fill().Children(func() {
 		nativeui.Column(c).Width(180).HeightPercent(100).Padding(18).Gap(12).Background(t.Surface).Children(func() {
 			nativeui.Text(c, "game-to-steam").FontSize(18).Bold()
-			nativeui.Text(c, "游戏库工具 · 0.1.0").TextColor(t.TextMuted)
+			nativeui.Text(c, "游戏库工具 · "+Version).TextColor(t.TextMuted)
 			for _, page := range []string{"Epic 游戏", "Steam 快捷方式", "设置"} {
 				nativeui.Button(c, page).WidthPercent(100).Disabled(a.busy || a.adoptOpen || a.deleteOpen || a.launchOpen || a.epicAuthOpen || a.epicForgetOpen).OnClick(func() { a.page = page; a.query = ""; a.detailID = "" })
 			}
@@ -528,7 +531,7 @@ func networkLabel(mode string) string {
 // Call it from the main goroutine.
 func Run() error {
 	mygo.App.SetName("game-to-steam")
-	mygo.App.SetVersion("0.1.0")
+	mygo.App.SetVersion(Version)
 	a := newApp()
 	dir, err := service.DataDir()
 	if err == nil {
