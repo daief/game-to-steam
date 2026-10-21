@@ -184,15 +184,36 @@ func (a *app) detailView(c *nativeui.Context) {
 		nativeui.Button(c, "自动补齐缺失图片").Disabled(a.busy || a.key == "").OnClick(a.fillArt)
 		nativeui.Button(c, "启动设置").Disabled(a.busy).OnClick(func() { a.openLaunch(a.detailID) })
 	})
+	a.artworkEditor(c, false)
+}
+
+func (a *app) artworkEditor(c *nativeui.Context, compact bool) {
+	if compact {
+		a.studioArtworkEditor(c)
+		return
+	}
+	previewHeight := float32(100)
+	galleryMin := float32(260)
+	if compact {
+		previewHeight = 72
+		galleryMin = 80
+	}
 	nativeui.Column(c).Gap(6).WidthPercent(100).Children(func() {
-		nativeui.Text(c, "当前设置").Bold()
+		nativeui.Text(c, "当前设置").FontSize(15).Bold()
 		nativeui.Row(c).Gap(10).WidthPercent(100).Children(func() {
 			for index, kind := range model.ArtworkKinds {
-				nativeui.Column(c.Key(string(kind))).Grow(1).Gap(4).Padding(6).Background(c.Theme().Surface).Disabled(a.busy).OnClick(func() { a.selectArtKind(index) }).Children(func() {
+				border := c.Theme().Border
+				if a.kind() == kind {
+					border = c.Theme().Accent
+				}
+				nativeui.Column(c.Key(string(kind))).Grow(1).Gap(8).Padding(10).Radius(6).Border(1, border).Background(c.Theme().Surface).Disabled(a.busy).OnClick(func() { a.selectArtKind(index) }).Children(func() {
 					if bm := a.artCurrent[kind]; bm != nil {
-						nativeui.Image(c, bm).WidthPercent(100).Height(100).Fit(nativeui.Contain)
+						nativeui.Image(c, bm).WidthPercent(100).Height(previewHeight).Fit(nativeui.Contain)
 					} else {
-						nativeui.Box(c).WidthPercent(100).Height(100).Border(1, c.Theme().TextMuted)
+						nativeui.Column(c).WidthPercent(100).Height(previewHeight).AlignItems(nativeui.Center).Justify(nativeui.Center).Background(railColor).Radius(4).Border(1, c.Theme().Border).Children(func() {
+							nativeui.Text(c, "+").FontSize(24).TextColor(c.Theme().TextMuted)
+							nativeui.Text(c, "未设置").FontSize(12).TextColor(c.Theme().TextMuted)
+						})
 					}
 					makeButton := nativeui.Button
 					if a.kind() == kind {
@@ -231,11 +252,15 @@ func (a *app) detailView(c *nativeui.Context) {
 			})
 		})
 	}
+	a.artworkCandidates(c, galleryMin)
+}
+
+func (a *app) artworkCandidates(c *nativeui.Context, galleryMin float32) {
 	state := a.artState()
 	if state.hasSelection() {
 		nativeui.Text(c, state.previewLabel+" · 点击保存后更新上方图片").FontSize(12)
 	}
-	nativeui.Scroll(c).Label("候选图片列表").Grow(1).MinHeight(260).WidthPercent(100).Children(func() {
+	nativeui.Scroll(c).Label("候选图片列表").Grow(1).MinHeight(galleryMin).WidthPercent(100).Children(func() {
 		nativeui.Column(c).Gap(10).WidthPercent(100).Children(func() {
 			if len(state.thumbErrors) > 0 {
 				nativeui.Text(c, fmt.Sprintf("%d 张图片加载失败，可选择后点击保存下载原图。", len(state.thumbErrors))).FontSize(12)
@@ -254,7 +279,11 @@ func (a *app) detailView(c *nativeui.Context) {
 			}
 			nativeui.Row(c).Wrap().Gap(10).WidthPercent(100).Children(func() {
 				for _, candidate := range state.artImages {
-					nativeui.Column(c.Key(strconv.Itoa(candidate.ID))).Width(artCardWidth(a.kind())).Shrink(0).Gap(4).Padding(6).Background(c.Theme().Surface).Children(func() {
+					border := c.Theme().Border
+					if state.selectedID == candidate.ID {
+						border = c.Theme().Accent
+					}
+					nativeui.Column(c.Key(strconv.Itoa(candidate.ID))).Radius(6).Border(1, border).Width(artCardWidth(a.kind())).Shrink(0).Gap(4).Padding(6).Background(c.Theme().Surface).Children(func() {
 						if thumb := state.thumbs[candidate.ID]; thumb != nil {
 							nativeui.Image(c, thumb).WidthPercent(100).Height(artThumbHeight(a.kind())).Fit(nativeui.Contain).Disabled(a.busy).OnClick(func() { a.selectCandidate(candidate) })
 						} else {

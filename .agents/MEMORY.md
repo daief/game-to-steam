@@ -2,7 +2,7 @@
 
 ## 首版范围与决策
 
-- Windows amd64 客户端，MyGo 0.5.5 纯 Go 原生 UI；中文列表界面，跟随系统主题，无 Web 前端。
+- Windows amd64 客户端，MyGo 0.5.5 纯 Go 原生 UI；中文列表界面，无 Web 前端。按 tmp/stitch_game_to_steam_redesign 的 Midnight Gaming Fluent 原则改为统一深海蓝主题（internal/ui/theme.go），冰蓝主操作、200px 导航、状态页脚、列表选中边框与设置分组；设置保存固定在滚动区外。设计稿只提供视觉参考，业务以本项目为准，不引入稿中的账号切换、游戏大小或兼容性承诺。
 - 只扫描 Epic 官方启动器本机已安装游戏，不接入账号游戏库管理，不复用 Epic 图片资源。独立认证只用于启动已安装游戏，不接管安装、更新或云存档。
 - 启动策略：managed、非空 DLC 映射、bRequiresAuth、OwnershipToken（布尔值或字符串 true）或强制选项默认生成显式 --launch-mode authenticated 的桥接命令，取得有效凭据后普通子进程直启游戏、保留 Steam 环境，不启动官方 Epic；裸 EXE 不引入桥接。按用户决定移除官方 Epic 启动器选项和路径输入，官方启动需求直接回 Epic；强制选项命名为“强制开启 Epic 认证”。bCanRunOffline 不覆盖认证要求；本机霍格沃茨需认证与所有权令牌。新模式只影响新导入和按策略生成，已有自定义命令不自动覆盖。
 - 只修改最近使用的 Steam 账号，不提供账号切换。写入前要求用户手动退出 Steam，不自动关闭或重启。
@@ -30,6 +30,8 @@
 - 图标原图 assets/icon.png；go generate ./assets 用 cmd/icon-gen（已有 x/image 缩放依赖）生成 16–256 九尺寸 PNG ICO 和根目录 icon_windows_amd64.syso（纯 Go COFF 图标资源），两项生成物随源码保存，普通 go build/CI 自动嵌入；窗口 SetIcon 使用嵌入 PNG，mygo.json 和 Inno Setup 也已配置。已从编译 EXE 提取确认图标。
 - .github/workflows/release.yml 在 GitHub Release published 时构建对应标签，也可手动指定已有 Release 标签重跑。Windows 2025 runner 使用 go.mod 版本和预装 Inno Setup；测试/检查后上传英文 setup.exe、包含两个 EXE 的便携 ZIP 和 SHA256SUMS.txt，不创建 Release。标签支持 v1.2.3 / v1.2.3-beta.1（v 可省略），程序 ui.Version 与安装包版本从标签注入。installer/setup.iss 固定 AppId，当前用户安装到 LocalAppData/Programs，可选路径和桌面快捷方式；卸载不清理应用数据、凭据或 Steam。已本地编译安装包并验证 ZIP/校验和、actionlint 和工作流 PowerShell 语法；未触发真实 GitHub 发布。
 - 主窗口默认 1280×900、最小 1100×800，按用户决定优先提供足够的图片浏览空间，不再适配 900×640。MyGo 恢复旧 StateKey 尺寸不按新最小值钳制，启动后显式确保内容区至少 1100×800；已用模拟接口下载 WebP 的真实原生窗口验证旧 900×640 状态恢复与图片显示。
+- Steam 快捷方式页由 internal/ui/shortcuts.go 实现三栏：主菜单、300px 可搜索快捷列表、右侧启动配置/封面配置页签；勾选只用于批量删除，查看游戏与勾选独立。仅管理关联的 Epic 游戏可编辑，外部条目只读。启动草稿按 AppID 隔离保留，切游戏/页签不丢失，重置或成功保存后重建；保存仍以原快捷方式快照检测外部变更。所有页面共用 midnightTheme 和 Microsoft YaHei UI 中文字体，navigation.go 提供 200px 图标分组导航与底部账号卡，工作区使用 40px 顶部栏；设置按路径整行、认证与封面双栏、网络整行排列，底部右侧固定保存。Steam 页采用 studio.go 的设计稿布局：全高无外框三栏、炭灰面板、凹陷输入区、启动策略并排卡片；封面使用类型标签、当前类型的图片/路径横向卡片、候选图库及底部保存栏，三类图片仍分别保存。普通 Epic 独立详情继续显示三张当前图片卡片。仅进入封面页签时加载，不打开模态窗口。Epic 页原有独立详情/启动对话框继续保留。
+- Epic 游戏页由 internal/ui/epic.go 独立实现：固定表头、紧凑对齐列表，全部/未导入/已导入计数筛选，名称与安装路径搜索，Ctrl+F 聚焦、Esc 清空。已导入必须同时存在管理关联和对应 Steam 快捷方式，外部删除后可重新导入；清单的 Managed 是认证策略字段，不能当导入状态。全选/表头复选仅影响当前筛选与搜索可见项，隐藏已选项保留且计入底部总数；批量操作栏仅选中时显示，绝对定位于列表视口底部，滚动内容末尾预留 96px 防遮挡；单项导入独立构造请求，不夹带批量选择，仍走重复接管确认。
 - Go 要求 1.27.1+。mise.toml 提供 dev/build/test/check/preview 任务，使用本机 Go；项目环境设置 GOPROXY=https://goproxy.cn,direct，未修改全局 Go 设置。按用户要求，命令默认直接使用 `go`，不预设 `MISE_GO_VERSION`，不使用 go.exe 绝对路径；历史 shim 排障记录不能作为当前环境故障的依据。
 
 ## 验证与后续

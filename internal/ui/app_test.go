@@ -182,13 +182,22 @@ func TestNetworkSettingsModeSelection(t *testing.T) {
 	if e := tt.Click("代理地址"); e != nil {
 		t.Fatal(e)
 	}
-	if e := tt.Click("网络模式"); e != nil {
-		t.Fatal(e)
-	}
 	if e := tt.Click("直连"); e != nil {
 		t.Fatal(e)
 	}
 	if a.settings.Network.Mode != "direct" {
+		t.Fatal(a.settings.Network)
+	}
+	if e := tt.Click("指定自定义代理"); e != nil {
+		t.Fatal(e)
+	}
+	if a.settings.Network.Mode != "custom" || a.settings.Network.ProxyURL != "http://127.0.0.1:7890" {
+		t.Fatal("mode switch lost proxy draft", a.settings.Network)
+	}
+	if e := tt.Click("跟随系统代理"); e != nil {
+		t.Fatal(e)
+	}
+	if a.settings.Network.Mode != "system" {
 		t.Fatal(a.settings.Network)
 	}
 }

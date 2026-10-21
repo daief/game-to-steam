@@ -5,7 +5,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo"
@@ -15,7 +14,6 @@ import (
 	service "game-to-steam/internal/app"
 	"game-to-steam/internal/artwork"
 	"game-to-steam/internal/model"
-	"game-to-steam/internal/network"
 	"game-to-steam/internal/system"
 )
 
@@ -34,6 +32,11 @@ type app struct {
 	svc                          *service.Service
 	snapshot                     service.Snapshot
 	page, query, status          string
+	epicFilter                   string
+	shortcutID                   uint32
+	shortcutChosen               bool
+	shortcutTab                  int
+	shortcutEditors              map[uint32]*shortcutEditor
 	busy                         bool
 	cancel                       context.CancelFunc
 	results                      []model.Result
@@ -110,142 +113,111 @@ func (a *app) refresh() {
 }
 
 func (a *app) view(c *nativeui.Context) {
+	c.SetTheme(midnightTheme)
 	t := c.Theme()
-	nativeui.Row(c).Fill().Children(func() {
-		nativeui.Column(c).Width(180).HeightPercent(100).Padding(18).Gap(12).Background(t.Surface).Children(func() {
-			nativeui.Text(c, "game-to-steam").FontSize(18).Bold()
-			nativeui.Text(c, "游戏库工具 · "+Version).TextColor(t.TextMuted)
-			for _, page := range []string{"Epic 游戏", "Steam 快捷方式", "设置"} {
-				nativeui.Button(c, page).WidthPercent(100).Disabled(a.busy || a.adoptOpen || a.deleteOpen || a.launchOpen || a.epicAuthOpen || a.epicForgetOpen).OnClick(func() { a.page = page; a.query = ""; a.detailID = "" })
-			}
-			nativeui.Box(c).Grow(1)
-			nativeui.Text(c, "目标 Steam 账号").TextColor(t.TextMuted)
-			label := "未检测到"
-			if a.snapshot.Profile.AccountID != "" {
-				label = a.snapshot.Profile.Name + "\n" + a.snapshot.Profile.AccountID
-			}
-			nativeui.Text(c, label)
-			nativeui.Text(c, "修改前请手动退出 Steam").FontSize(12).TextColor(t.TextMuted)
-			nativeui.Button(c, "打开 Steam").Disabled(a.busy || a.snapshot.Profile.Root == "").OnClick(func() {
-				if err := system.Open(filepath.Join(a.snapshot.Profile.Root, "steam.exe")); err != nil {
-					a.status = err.Error()
-				}
-			})
-		})
-		nativeui.Column(c).Grow(1).HeightPercent(100).Padding(24).Gap(14).Children(func() {
-			nativeui.Row(c).Gap(12).AlignItems(nativeui.Center).Children(func() {
-				title := a.page
-				if a.detailID != "" {
-					title = "封面与启动方式"
-				}
-				nativeui.Text(c, title).FontSize(25).Bold().Grow(1)
+	nativeui.Row(c).Fill().Background(t.Background).Children(func() {
+		a.navigation(c)
+		workspace := nativeui.Column(c).Grow(1).HeightPercent(100).Padding(0).Gap(0)
+		if a.page == "Steam 快捷方式" {
+			workspace.Padding(0).Gap(0)
+		}
+		workspace.Children(func() {
+			nativeui.Row(c).WidthPercent(100).Height(40).Padding(8, 24).Gap(12).AlignItems(nativeui.Center).Background(studioList).Border(1, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+				nativeui.Text(c, a.page).FontSize(12).Bold().TextColor(t.Accent)
+				nativeui.Text(c, "本地游戏库管理").FontSize(11).TextColor(t.TextMuted).Grow(1)
 				if a.busy {
-					nativeui.Text(c, "处理中…").TextColor(t.TextMuted)
-					nativeui.Button(c, "取消后续任务").OnClick(func() {
+					nativeui.Button(c, "取消后续任务").Height(24).OnClick(func() {
 						if a.cancel != nil {
 							a.cancel()
 						}
 					})
 				}
-				nativeui.Button(c, "刷新").Disabled(a.busy || a.svc == nil || a.detailID != "").OnClick(a.refresh)
 			})
-			nativeui.Text(c, a.status).TextColor(t.TextMuted)
-			if a.svc == nil {
-				nativeui.Text(c, "初始化失败，请根据上方提示处理本地数据后重新打开客户端")
-				return
+			body := nativeui.Column(c).WidthPercent(100).Grow(1).MinHeight(0).Padding(16, 24).Gap(10)
+			if a.page == "Steam 快捷方式" {
+				body.Padding(0).Gap(0)
 			}
-			if a.detailID != "" {
-				a.detailView(c)
-			} else if a.page == "设置" {
-				a.settingsView(c)
-			} else {
-				a.libraryView(c)
-			}
-			if a.epicAuthOpen {
-				a.epicAuthDialog(c)
-			} else {
-				a.epicAuthCode = ""
-			}
-			if a.epicForgetOpen {
-				a.epicForgetDialog(c)
-			}
-			if a.detailID == "" && (len(a.results) > 0 || len(a.snapshot.Warnings) > 0) {
-				nativeui.Scroll(c).Height(120).WidthPercent(100).Children(func() {
-					nativeui.Column(c).Gap(5).Children(func() {
-						for _, warning := range a.snapshot.Warnings {
-							nativeui.Text(c, "提示："+warning).FontSize(12)
+			body.Children(func() {
+				if a.page != "Steam 快捷方式" && (a.page != "Epic 游戏" || a.detailID != "") {
+					nativeui.Row(c).Gap(12).AlignItems(nativeui.Center).Children(func() {
+						title := a.page
+						if a.page == "设置" {
+							title = "全局设置"
 						}
-						for _, r := range a.results {
-							prefix := "✓ "
-							if r.Failed {
-								prefix = "! "
-							}
-							nativeui.Text(c, prefix+r.Name+"："+r.Message).FontSize(12)
+						if a.page == "Epic 游戏" {
+							title = "Epic 游戏管理"
+						}
+						if a.detailID != "" && a.page != "Steam 快捷方式" {
+							title = "封面与启动方式"
+						}
+						nativeui.Text(c, title).FontSize(20).Bold().Grow(1)
+						if a.busy {
+							nativeui.Text(c, "处理中…").TextColor(t.TextMuted)
+							nativeui.Button(c, "取消后续任务").OnClick(func() {
+								if a.cancel != nil {
+									a.cancel()
+								}
+							})
+						}
+						if a.detailID != "" {
+							nativeui.Button(c, "刷新").Disabled(a.busy || a.svc == nil || (a.detailID != "" && a.page != "Steam 快捷方式")).OnClick(a.refresh)
 						}
 					})
+				}
+				if a.svc == nil {
+					nativeui.Text(c, "初始化失败，请根据上方提示处理本地数据后重新打开客户端")
+					return
+				}
+				if a.page == "Steam 快捷方式" {
+					a.shortcutWorkspace(c)
+				} else if a.detailID != "" {
+					a.detailView(c)
+				} else if a.page == "设置" {
+					a.settingsView(c)
+				} else {
+					a.libraryView(c)
+				}
+				if a.epicAuthOpen {
+					a.epicAuthDialog(c)
+				} else {
+					a.epicAuthCode = ""
+				}
+				if a.epicForgetOpen {
+					a.epicForgetDialog(c)
+				}
+				if a.detailID == "" && (len(a.results) > 0 || len(a.snapshot.Warnings) > 0) {
+					nativeui.Scroll(c).Height(120).WidthPercent(100).Children(func() {
+						nativeui.Column(c).Gap(5).Children(func() {
+							for _, warning := range a.snapshot.Warnings {
+								nativeui.Text(c, "提示："+warning).FontSize(12)
+							}
+							for _, r := range a.results {
+								prefix := "✓ "
+								if r.Failed {
+									prefix = "! "
+								}
+								nativeui.Text(c, prefix+r.Name+"："+r.Message).FontSize(12)
+							}
+						})
+					})
+				}
+				footer := nativeui.Row(c).WidthPercent(100).Padding(4, 0).Gap(12).Height(28)
+				if a.page == "Steam 快捷方式" {
+					footer.Padding(4, 12).Radius(0).Height(28)
+				}
+				footer.Children(func() {
+					nativeui.Text(c, a.status).FontSize(12).TextColor(t.TextMuted).Grow(1)
+					badge(c, fmt.Sprintf("Epic %d · Steam %d", len(a.snapshot.Games), len(a.snapshot.Shortcuts)), t.Accent)
 				})
-			}
+			})
 		})
 	})
 	a.dialogs(c)
 	a.launchDialog(c)
 }
 
-func (a *app) libraryView(c *nativeui.Context) {
-	isEpic := a.page == "Epic 游戏"
-	if isEpic {
-		nativeui.Text(c, a.snapshot.EpicAuth.Label()+"；需要认证的游戏请先在设置中登录。无云存档同步。").FontSize(12).TextColor(c.Theme().TextMuted)
-	}
-	nativeui.TextInput(c, &a.query).Label("搜索游戏").Placeholder("输入游戏名称筛选").Disabled(a.busy).WidthPercent(100)
-	nativeui.Row(c).Gap(10).Children(func() {
-		nativeui.Button(c, "全选可见").Disabled(a.busy).OnClick(func() {
-			if isEpic {
-				for _, g := range a.snapshot.Games {
-					if a.matches(g.Name) {
-						a.selectedGames[g.ID] = true
-					}
-				}
-			} else {
-				for _, s := range a.snapshot.Shortcuts {
-					if a.matches(s.Name) {
-						a.selectedShortcuts[s.AppID] = true
-					}
-				}
-			}
-		})
-		nativeui.Button(c, "取消选择").Disabled(a.busy).OnClick(func() { a.selectedGames = map[string]bool{}; a.selectedShortcuts = map[uint32]bool{} })
-		if isEpic {
-			nativeui.PrimaryButton(c, fmt.Sprintf("导入所选 (%d)", a.gameSelectionCount())).Disabled(a.busy || a.gameSelectionCount() == 0 || a.snapshot.Profile.AccountID == "").OnClick(a.prepareImport)
-		} else {
-			nativeui.PrimaryButton(c, fmt.Sprintf("删除所选 (%d)", a.shortcutSelectionCount())).Disabled(a.busy || a.shortcutSelectionCount() == 0).OnClick(a.prepareDelete)
-		}
-	})
-	nativeui.Scroll(c).Grow(1).WidthPercent(100).Children(func() {
-		nativeui.Column(c).Gap(8).WidthPercent(100).Children(func() {
-			visible := 0
-			if isEpic {
-				for _, g := range a.snapshot.Games {
-					if !a.matches(g.Name) {
-						continue
-					}
-					visible++
-					a.gameRow(c, g)
-				}
-			} else {
-				for _, s := range a.snapshot.Shortcuts {
-					if !a.matches(s.Name) {
-						continue
-					}
-					visible++
-					a.shortcutRow(c, s)
-				}
-			}
-			if visible == 0 {
-				nativeui.Text(c, "没有可显示的游戏。可刷新列表或检查设置中的路径。").TextColor(c.Theme().TextMuted)
-			}
-		})
-	})
-}
+func (a *app) libraryView(c *nativeui.Context) { a.epicLibraryView(c) }
+
 func (a *app) matches(name string) bool {
 	return strings.Contains(strings.ToLower(name), strings.ToLower(strings.TrimSpace(a.query)))
 }
@@ -266,68 +238,6 @@ func (a *app) shortcutSelectionCount() int {
 		}
 	}
 	return n
-}
-
-func (a *app) gameRow(c *nativeui.Context, g model.Game) {
-	t := c.Theme()
-	managed, ok := a.snapshot.Managed[g.ID]
-	present := false
-	if ok {
-		for _, sc := range a.snapshot.Shortcuts {
-			if sc.AppID == managed.AppID {
-				present = true
-			}
-		}
-	}
-	nativeui.Column(c.Key(g.ID)).Padding(12).Gap(6).WidthPercent(100).Background(t.Surface).Radius(6).Children(func() {
-		nativeui.Row(c).Gap(12).AlignItems(nativeui.Center).Children(func() {
-			selected := a.selectedGames[g.ID]
-			nativeui.Checkbox(c.Key("select"), &selected, g.Name).Disabled(a.busy).Grow(1).OnChange(func() { a.selectedGames[g.ID] = selected })
-			if present {
-				nativeui.Text(c, "已管理").TextColor(t.TextMuted)
-				nativeui.Button(c, "启动设置").Disabled(a.busy).OnClick(func() { a.openLaunch(g.ID) })
-				nativeui.Button(c, "封面与启动").Disabled(a.busy).OnClick(func() { a.openDetail(g.ID) })
-			}
-		})
-		nativeui.Text(c, g.InstallDir).FontSize(12).TextColor(t.TextMuted)
-		force := a.force[g.ID]
-		nativeui.Checkbox(c.Key("force"), &force, "强制开启 Epic 认证").Disabled(a.busy).OnChange(func() {
-			if present {
-				a.openLaunch(g.ID)
-				a.launchDraft.ForceEpic = force
-			} else {
-				a.force[g.ID] = force
-			}
-		})
-		via := g
-		via.ForceEpic = force
-		label := "自动策略：直接运行游戏 EXE"
-		if via.ViaEpic() {
-			label = "启动策略：独立认证后直接启动游戏（不启动 Epic 客户端）"
-		}
-		if present {
-			label = "当前命令可在“启动设置”中查看和编辑"
-		}
-		nativeui.Text(c, label).FontSize(12).TextColor(t.TextMuted)
-	})
-}
-
-func (a *app) shortcutRow(c *nativeui.Context, s model.Shortcut) {
-	t := c.Theme()
-	nativeui.Column(c.Key(fmt.Sprint(s.AppID) + s.Name)).Padding(12).Gap(5).WidthPercent(100).Background(t.Surface).Radius(6).Children(func() {
-		nativeui.Row(c).Gap(10).AlignItems(nativeui.Center).Children(func() {
-			selected := a.selectedShortcuts[s.AppID]
-			nativeui.Checkbox(c.Key("select"), &selected, s.Name).Disabled(a.busy).Grow(1).OnChange(func() { a.selectedShortcuts[s.AppID] = selected })
-			for id, m := range a.snapshot.Managed {
-				if m.AppID == s.AppID {
-					nativeui.Button(c, "启动设置").Disabled(a.busy).OnClick(func() { a.openLaunch(id) })
-					nativeui.Button(c, "封面与启动").Disabled(a.busy).OnClick(func() { a.openDetail(id) })
-					break
-				}
-			}
-		})
-		nativeui.Text(c, fmt.Sprintf("AppID %d · %s", s.AppID, s.Exe)).FontSize(12).TextColor(t.TextMuted)
-	})
 }
 
 func (a *app) prepareImport() {
@@ -417,7 +327,7 @@ func (a *app) dialogs(c *nativeui.Context) {
 		nativeui.Checkbox(c, &a.deleteImages, "同时清理这些条目的 Steam 自定义图片").Disabled(a.busy)
 		nativeui.Row(c).Gap(12).Children(func() {
 			nativeui.Button(c, "取消删除").Disabled(a.busy).OnClick(func() { a.deleteOpen = false })
-			nativeui.PrimaryButton(c, "确认删除").Disabled(a.busy).OnClick(func() {
+			nativeui.Button(c, "确认删除").TextColor(c.Theme().Danger).Disabled(a.busy).OnClick(func() {
 				if a.busy {
 					return
 				}
@@ -471,63 +381,57 @@ func (a *app) dialogs(c *nativeui.Context) {
 
 func (a *app) settingsView(c *nativeui.Context) {
 	nativeui.Scroll(c).Grow(1).WidthPercent(100).Children(func() {
-		nativeui.Column(c).Gap(10).WidthPercent(100).Children(func() {
-			nativeui.Text(c, "自动发现的路径可手动修改。只操作最近使用的 Steam 账号。").TextColor(c.Theme().TextMuted)
-			nativeui.Text(c, "Steam 安装目录")
-			nativeui.TextInput(c, &a.settings.SteamPath).Label("Steam 安装目录").Disabled(a.busy).WidthPercent(100)
-			nativeui.Text(c, "Epic 安装清单目录")
-			nativeui.TextInput(c, &a.settings.EpicManifestPath).Label("Epic 安装清单目录").Disabled(a.busy).WidthPercent(100)
-			nativeui.Text(c, "网络")
-			mode := networkLabel(a.settings.Network.Mode)
-			nativeui.Select(c, &mode, []string{"直连", "系统代理", "指定代理地址"}).Label("网络模式").Disabled(a.busy).OnChange(func() {
-				switch mode {
-				case "直连":
-					a.settings.Network.Mode = network.Direct
-				case "指定代理地址":
-					a.settings.Network.Mode = network.Custom
-				default:
-					a.settings.Network.Mode = network.System
-				}
+		nativeui.Column(c).Gap(16).WidthPercent(100).Children(func() {
+			section(c, "基础路径设置 (Core Paths)", "", func() {
+				nativeui.Text(c, "Steam 安装目录")
+				nativeui.TextInput(c, &a.settings.SteamPath).Label("Steam 安装目录").Background(studioList).Font("Cascadia Code").Height(36).Disabled(a.busy).WidthPercent(100)
+				nativeui.Text(c, "Epic 安装清单目录")
+				nativeui.TextInput(c, &a.settings.EpicManifestPath).Label("Epic 安装清单目录").Background(studioList).Font("Cascadia Code").Height(36).Disabled(a.busy).WidthPercent(100)
 			})
-			if a.settings.Network.Mode == network.Custom {
-				nativeui.TextInput(c, &a.settings.Network.ProxyURL).Label("代理地址").Placeholder("http://127.0.0.1:7890").Disabled(a.busy).WidthPercent(100)
-			}
-			nativeui.Text(c, "保存后用于 Epic 认证和封面请求；系统代理读取 Windows 设置，包含自动配置。").FontSize(12).TextColor(c.Theme().TextMuted)
-			nativeui.Text(c, "SteamGridDB API Key（可选）")
-			nativeui.TextInput(c, &a.key).Password().Label("SteamGridDB API Key").Disabled(a.busy).WidthPercent(100)
-			nativeui.Link(c, "获取 SteamGridDB API Key", "https://www.steamgriddb.com/profile/preferences/api")
-			nativeui.Text(c, "密钥保存到 Windows 凭据管理器。未填写时仍可导入及选择本地图片。").FontSize(12).TextColor(c.Theme().TextMuted)
-			nativeui.PrimaryButton(c, "保存设置").Disabled(a.busy).OnClick(func() {
-				settings := a.settings
-				key := strings.TrimSpace(a.key)
-				a.run("保存设置", func(ctx context.Context) (func(), error) {
-					err := a.svc.SaveSettings(settings)
-					if err == nil {
-						err = system.SaveKey(key)
-					}
-					snap := a.svc.Refresh()
-					return func() { a.accept(snap); a.key = key }, err
+			nativeui.Row(c).WidthPercent(100).Gap(16).AlignItems(nativeui.Start).Children(func() {
+				nativeui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					section(c, "Epic 独立认证 (DPAPI)", "", func() { a.epicAuthSettings(c) })
+				})
+				nativeui.Column(c).Grow(1).MinWidth(0).Children(func() {
+					section(c, "SteamGridDB 封面服务", "", func() {
+						nativeui.Row(c).WidthPercent(100).AlignItems(nativeui.Center).Children(func() {
+							nativeui.Text(c, "API Key（可选）").FontSize(12).Grow(1)
+							nativeui.Link(c, "获取密钥 ↗", "https://www.steamgriddb.com/profile/preferences/api").FontSize(11)
+						})
+						nativeui.TextInput(c, &a.key).Password().Background(studioList).Height(36).Label("SteamGridDB API Key").Disabled(a.busy).WidthPercent(100)
+						nativeui.Text(c, "密钥保存到 Windows 凭据管理器。未填写时仍可导入及选择本地图片。").FontSize(12).TextColor(c.Theme().TextMuted)
+					})
 				})
 			})
-			a.epicAuthSettings(c)
-			nativeui.Text(c, "数据与备份目录："+a.svc.Dir).FontSize(12)
-			nativeui.Button(c, "打开数据与备份目录").OnClick(func() {
-				if err := system.Open(a.svc.Dir); err != nil {
-					a.status = err.Error()
-				}
+			a.networkSettings(c)
+			nativeui.Row(c).WidthPercent(100).Padding(12, 16).Gap(12).AlignItems(nativeui.Center).Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(6).Children(func() {
+				nativeui.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
+					nativeui.Text(c, "数据与备份").FontSize(12).Bold()
+					nativeui.Text(c, a.svc.Dir).WidthPercent(100).SingleLine().Tooltip(a.svc.Dir).Font("Cascadia Code").FontSize(11).TextColor(c.Theme().TextMuted)
+				})
+				nativeui.Button(c, "打开目录").Label("打开数据与备份目录").Height(30).Padding(4, 12).OnClick(func() {
+					if err := system.Open(a.svc.Dir); err != nil {
+						a.status = err.Error()
+					}
+				})
 			})
 		})
 	})
-}
-
-func networkLabel(mode string) string {
-	switch mode {
-	case network.Direct:
-		return "直连"
-	case network.Custom:
-		return "指定代理地址"
-	}
-	return "系统代理"
+	nativeui.Row(c).WidthPercent(100).Padding(12, 0).Gap(12).AlignItems(nativeui.Center).Border(1, c.Theme().Border).BorderWidth(1, 0, 0, 0).Children(func() {
+		nativeui.Text(c, "更改将在保存后应用").FontSize(12).TextColor(c.Theme().TextMuted).Grow(1)
+		nativeui.PrimaryButton(c, "保存设置").Height(36).Disabled(a.busy).OnClick(func() {
+			settings := a.settings
+			key := strings.TrimSpace(a.key)
+			a.run("保存设置", func(ctx context.Context) (func(), error) {
+				err := a.svc.SaveSettings(settings)
+				if err == nil {
+					err = system.SaveKey(key)
+				}
+				snap := a.svc.Refresh()
+				return func() { a.accept(snap); a.key = key }, err
+			})
+		})
+	})
 }
 
 // Run initializes the application and runs the native UI event loop.

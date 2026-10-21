@@ -10,19 +10,23 @@ import (
 )
 
 func (a *app) epicAuthSettings(c *nativeui.Context) {
-	nativeui.Text(c, "Epic 独立认证").FontSize(18).Bold()
-	nativeui.Text(c, a.snapshot.EpicAuth.Label()).FontSize(12)
-	nativeui.Text(c, "复用现有游戏安装，不读取官方客户端登录令牌；认证状态仅为本地记录，启动时刷新会话。").FontSize(12).WidthPercent(100)
-	nativeui.Text(c, "不提供云存档同步，官方客户端继续负责更新等管理；切换启动方式时注意存档冲突。").FontSize(12).WidthPercent(100)
-	nativeui.Row(c).Gap(12).Children(func() {
-		nativeui.Button(c, "登录 / 更换 Epic 账号").Disabled(a.busy).OnClick(func() { a.epicAuthCode = ""; a.epicAuthOpen = true })
-		nativeui.Button(c, "刷新认证状态").Disabled(a.busy).OnClick(func() {
+
+	nativeui.Column(c).WidthPercent(100).Padding(10).Gap(6).Background(studioList).Border(1, c.Theme().Border).Radius(4).Children(func() {
+		nativeui.Text(c, a.snapshot.EpicAuth.Label()).FontSize(12).Bold().TextColor(c.Theme().Accent)
+		nativeui.Text(c, "凭据由 Windows DPAPI 加密保存，启动时刷新会话。").FontSize(11).TextColor(c.Theme().TextMuted).WidthPercent(100)
+	})
+	nativeui.Text(c, "游戏更新仍由官方客户端管理，不提供云存档同步。").FontSize(12).WidthPercent(100)
+	nativeui.Row(c).Gap(8).Wrap().Children(func() {
+		nativeui.PrimaryButton(c, "登录 / 更换 Epic 账号").Height(30).FontSize(11).Disabled(a.busy).OnClick(func() { a.epicAuthCode = ""; a.epicAuthOpen = true })
+		nativeui.Button(c, "刷新认证状态").Height(30).FontSize(11).Disabled(a.busy).OnClick(func() {
 			a.run("读取 Epic 认证状态", func(ctx context.Context) (func(), error) {
 				status := a.svc.EpicAuthStatus()
 				return func() { a.snapshot.EpicAuth = status }, nil
 			})
 		})
-		nativeui.Button(c, "移除桥接登录").Disabled(a.busy || a.snapshot.EpicAuth.State == "missing" || a.snapshot.EpicAuth.State == "").OnClick(func() { a.epicForgetOpen = true })
+	})
+	nativeui.Row(c).WidthPercent(100).Justify(nativeui.End).Children(func() {
+		nativeui.Button(c, "移除桥接登录").Height(26).FontSize(11).TextColor(c.Theme().Danger).Background(c.Theme().Surface).BorderWidth(0).Disabled(a.busy || a.snapshot.EpicAuth.State == "missing" || a.snapshot.EpicAuth.State == "").OnClick(func() { a.epicForgetOpen = true })
 	})
 }
 

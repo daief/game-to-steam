@@ -97,6 +97,18 @@ func TestPreviewArtifact(t *testing.T) {
 	if e = png.Encode(settingsFile, settingsView.Image()); e != nil {
 		t.Fatal(e)
 	}
+	// Include the lower settings card in review artifacts, not just the initial viewport.
+	a.settings.SteamPath = `C:\Program Files (x86)\Steam`
+	a.settings.EpicManifestPath = `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests`
+	fullSettings := nativeui.NewTester(a.view, 1280, 1000)
+	fullFile, err := os.Create(filepath.Join(dir, "settings-full.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(fullFile, fullSettings.Image()); err != nil {
+		t.Fatal(err)
+	}
+	fullFile.Close()
 	a.epicAuthOpen = true
 	a.epicAuthCode = "preview-not-a-real-code"
 	authView := nativeui.NewTester(a.view, 1100, 780)
