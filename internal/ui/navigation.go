@@ -15,7 +15,7 @@ func (a *app) navigation(c *nativeui.Context) {
 				nativeui.Icon(c, studioGameIcon).Width(20).Height(20).TextColor(t.Accent)
 			})
 			nativeui.Column(c).Gap(4).Children(func() {
-				nativeui.Text(c, "Game to\nSteam").FontSize(20).Bold()
+				nativeui.Text(c, "Game2Steam").FontSize(17).Bold()
 				nativeui.Text(c, "v"+Version+" · 桌面版").FontSize(11).TextColor(t.TextMuted)
 			})
 		})

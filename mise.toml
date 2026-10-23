@@ -11,7 +11,7 @@ run = "go tool mygo dev"
 [tasks.build]
 description = "使用 MyGo 构建 Windows 客户端、桥接与 Setup 安装包"
 env = { GOOS = "windows", GOARCH = "amd64" }
-run = ["go tool mygo build -platform windows/amd64", "pwsh -NoProfile -File scripts/name-setup.ps1"]
+run = "go tool mygo build -platform windows/amd64"
 
 [tasks.test]
 description = "运行核心服务和原生 UI 测试"

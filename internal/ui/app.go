@@ -437,7 +437,7 @@ func (a *app) settingsView(c *nativeui.Context) {
 // Run initializes the application and runs the native UI event loop.
 // Call it from the main goroutine.
 func Run() error {
-	mygo.App.SetName("game-to-steam")
+	mygo.App.SetName("Game2Steam")
 	if packagedVersion := mygo.App.Version(); packagedVersion != "" {
 		Version = packagedVersion
 	}
@@ -458,7 +458,7 @@ func Run() error {
 		}
 	}
 	mygo.App.WhenReady(func() {
-		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "game-to-steam", Width: 1280, Height: 900, MinWidth: 1100, MinHeight: 800, StateKey: "main", Content: nativeui.View(a.view)})
+		a.win = mygo.NewWindow(mygo.WindowOptions{Title: "Game2Steam", Width: 1280, Height: 900, MinWidth: 1100, MinHeight: 800, StateKey: "main", Content: nativeui.View(a.view)})
 		if err := a.win.SetIcon(assets.Icon); err != nil {
 			a.status = "设置窗口图标失败: " + err.Error()
 		}
