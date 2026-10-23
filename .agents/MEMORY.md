@@ -2,7 +2,7 @@
 
 ## 首版范围与决策
 
-- Windows amd64 客户端，MyGo 0.5.5 纯 Go 原生 UI；中文列表界面，无 Web 前端。按 tmp/stitch_game_to_steam_redesign 的 Midnight Gaming Fluent 原则改为统一深海蓝主题（internal/ui/theme.go），冰蓝主操作、200px 导航、状态页脚、列表选中边框与设置分组；设置保存固定在滚动区外。设计稿只提供视觉参考，业务以本项目为准，不引入稿中的账号切换、游戏大小或兼容性承诺。
+- Windows amd64 客户端，MyGo 0.6.3 纯 Go 原生 UI；中文列表界面，无 Web 前端。按 tmp/stitch_game_to_steam_redesign 的 Midnight Gaming Fluent 原则改为统一深海蓝主题（internal/ui/theme.go），冰蓝主操作、200px 导航、状态页脚、列表选中边框与设置分组；设置保存固定在滚动区外。设计稿只提供视觉参考，业务以本项目为准，不引入稿中的账号切换、游戏大小或兼容性承诺。
 - 只扫描 Epic 官方启动器本机已安装游戏，不接入账号游戏库管理，不复用 Epic 图片资源。独立认证只用于启动已安装游戏，不接管安装、更新或云存档。
 - 启动策略：managed、非空 DLC 映射、bRequiresAuth、OwnershipToken（布尔值或字符串 true）或强制选项默认生成显式 --launch-mode authenticated 的桥接命令，取得有效凭据后普通子进程直启游戏、保留 Steam 环境，不启动官方 Epic；裸 EXE 不引入桥接。按用户决定移除官方 Epic 启动器选项和路径输入，官方启动需求直接回 Epic；强制选项命名为“强制开启 Epic 认证”。bCanRunOffline 不覆盖认证要求；本机霍格沃茨需认证与所有权令牌。新模式只影响新导入和按策略生成，已有自定义命令不自动覆盖。
 - 只修改最近使用的 Steam 账号，不提供账号切换。写入前要求用户手动退出 Steam，不自动关闭或重启。
@@ -37,7 +37,7 @@
 ## 验证与后续
 
 - 核心服务、模拟 HTTP、原生 UI 交互测试及 Go/MyGo 静态检查通过；测试不修改真实 Steam 库或凭据。
-- MyGo 固定 v0.5.5，工具与 UI 共用模块；必要传递依赖 x/text v0.43.0。v0.5 起构造控件时已写入绑定值，当前帧 Disabled 不能撤销上一帧允许的输入；局部变量的 OnChange 绑定已回归。实际业务由 run 的 busy 检查串行保护，导入/删除准备、接管推进及授权码提交在修改待处理状态前额外检查 busy。无动画测试时钟兼容修改需求。
+- MyGo 固定 v0.6.3，工具与 UI 共用模块；传递依赖 x/text v0.43.0、x/net v0.59.0（MyGo contentrules 使用 publicsuffix）。从 v0.5.5 升级后官方 migrate-ui 无待迁移项，无需修改现有控件调用；全量测试、Go/MyGo 静态检查、客户端与桥接构建通过，并检查设置和窄窗口封面软件预览。v0.5 起构造控件时已写入绑定值，当前帧 Disabled 不能撤销上一帧允许的输入；局部变量的 OnChange 绑定已回归。实际业务由 run 的 busy 检查串行保护，导入/删除准备、接管推进及授权码提交在修改待处理状态前额外检查 busy。无动画测试时钟兼容修改需求。
 - v0.5.5 已通过 mise test/check/build、四张软件渲染预览检查及真实 Windows 窗口的页面切换、搜索、滚轮、密码属性、登录取消和正常关闭验证；未进行真实登录、导入、删除或启动游戏。
 - 本机只读发现 1 个已安装 Epic 游戏，最近账号当时无非 Steam 条目。已检查示例 UI 渲染和实际 EXE 主窗口创建/正常关闭。
 - 按用户要求已移除 smoke 脚本及任务，不再维护隐藏窗口启动检查。
