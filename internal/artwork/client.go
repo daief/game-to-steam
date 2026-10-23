@@ -65,7 +65,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 		return e
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Key)
-	req.Header.Set("User-Agent", "game-to-steam/0.2.0")
+	req.Header.Set("User-Agent", "game-to-steam/0.2.1")
 	res, e := c.HTTP.Do(req)
 	if e != nil {
 		return fmt.Errorf("图片服务连接失败或超时：%w", e)
