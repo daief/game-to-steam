@@ -17,7 +17,7 @@ import (
 	"game-to-steam/internal/system"
 )
 
-// Version is set from the release tag by the release build.
+// Version falls back for plain go builds; MyGo packages supply their version.
 var Version = "0.2.0"
 
 type app struct {
@@ -438,6 +438,9 @@ func (a *app) settingsView(c *nativeui.Context) {
 // Call it from the main goroutine.
 func Run() error {
 	mygo.App.SetName("game-to-steam")
+	if packagedVersion := mygo.App.Version(); packagedVersion != "" {
+		Version = packagedVersion
+	}
 	mygo.App.SetVersion(Version)
 	a := newApp()
 	dir, err := service.DataDir()

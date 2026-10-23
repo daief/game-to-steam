@@ -9,15 +9,15 @@
 先运行 `mise run build`，在交互式 PowerShell 中首次登录：
 
 ```powershell
-.\build\windows-amd64\epic-bridge.exe --auth-login
+.\build\bridge\epic-bridge.exe --auth-login
 ```
 
 浏览器直接打开 Epic 官方登录页，可复用默认浏览器当前登录。确认是拥有游戏的账号，完成登录后，把响应里的 `authorizationCode` 值（或单行完整 JSON）粘贴到桥接终端，按 Enter。输入不回显，不要把授权码放进命令行、截图或发给其他人。需要验证码、条款确认时在 Epic 网页处理；失败后重新运行登录，不自动读取客户端凭据。
 
 ```powershell
-.\build\windows-amd64\epic-bridge.exe --auth-status
-.\build\windows-amd64\epic-bridge.exe --list
-.\build\windows-amd64\epic-bridge.exe --launch-mode authenticated --game "上一步列出的完整标识"
+.\build\bridge\epic-bridge.exe --auth-status
+.\build\bridge\epic-bridge.exe --list
+.\build\bridge\epic-bridge.exe --launch-mode authenticated --game "上一步列出的完整标识"
 ```
 
 `--auth-status` 只读取本地状态，不验证服务器会话；`--auth-forget` 只删除桥接本地认证，不调用 Epic 注销接口。会话保存在 `%AppData%\game-to-steam\bridge\auth\session.dpapi`，用当前 Windows 用户 DPAPI 加密并限制目录 ACL；刷新操作有跨进程锁，轮换凭据先原子保存再获取启动凭据。请求沿用客户端保存的网络设置（缺省系统代理），不会记录完整认证响应、令牌或启动命令。
@@ -44,8 +44,8 @@
 
 ```powershell
 mise run bridge-build
-.\build\windows-amd64\epic-bridge.exe --list
-.\build\windows-amd64\epic-bridge.exe --game "上一步显示的完整游戏标识"
+.\build\bridge\epic-bridge.exe --list
+.\build\bridge\epic-bridge.exe --game "上一步显示的完整游戏标识"
 ```
 
 PowerShell 直接运行只能验证启动和进程识别；Steam 会话是否正确结束必须从 Steam 启动验证。

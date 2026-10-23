@@ -5,14 +5,13 @@ GOPROXY = "https://goproxy.cn,direct"
 [tasks.dev]
 description = "启动 MyGo 原生开发窗口，修改 Go 文件后自动重建"
 depends = ["bridge-build"]
-env = { GAME_TO_STEAM_BRIDGE_PATH = "build/windows-amd64/epic-bridge.exe" }
+env = { GAME_TO_STEAM_BRIDGE_PATH = "build/bridge/epic-bridge.exe" }
 run = "go tool mygo dev"
 
 [tasks.build]
-description = "构建 Windows amd64 客户端与桥接 EXE"
-depends = ["bridge-build"]
+description = "使用 MyGo 构建 Windows 客户端、桥接与 Setup 安装包"
 env = { GOOS = "windows", GOARCH = "amd64" }
-run = 'go build -mod=readonly -trimpath -ldflags="-s -w -H=windowsgui" -o build/windows-amd64/game-to-steam.exe .'
+run = ["go tool mygo build -platform windows/amd64", "pwsh -NoProfile -File scripts/name-setup.ps1"]
 
 [tasks.test]
 description = "运行核心服务和原生 UI 测试"
@@ -21,7 +20,7 @@ run = "go test ./..."
 [tasks.bridge-build]
 description = "构建独立 Epic 桥接程序（不修改 Steam 快捷方式）"
 env = { GOOS = "windows", GOARCH = "amd64" }
-run = 'go build -mod=readonly -trimpath -o build/windows-amd64/epic-bridge.exe ./cmd/epic-bridge'
+run = 'go build -mod=readonly -trimpath -o build/bridge/epic-bridge.exe ./cmd/epic-bridge'
 
 [tasks.check]
 description = "运行 Go 静态检查和 MyGo UI 生命周期检查"
