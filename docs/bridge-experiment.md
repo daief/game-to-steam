@@ -20,7 +20,7 @@
 .\build\bridge\epic-bridge.exe --launch-mode authenticated --game "上一步列出的完整标识"
 ```
 
-`--auth-status` 只读取本地状态，不验证服务器会话；`--auth-forget` 只删除桥接本地认证，不调用 Epic 注销接口。会话保存在 `%AppData%\game-to-steam\bridge\auth\session.dpapi`，用当前 Windows 用户 DPAPI 加密并限制目录 ACL；刷新操作有跨进程锁，轮换凭据先原子保存再获取启动凭据。请求沿用客户端保存的网络设置（缺省系统代理），不会记录完整认证响应、令牌或启动命令。
+`--auth-status` 只读取本地状态，不验证服务器会话；`--auth-forget` 只删除桥接本地认证，不调用 Epic 注销接口。会话保存在 `%AppData%\Game2Steam\bridge\auth\session.dpapi`，用当前 Windows 用户 DPAPI 加密并限制目录 ACL；刷新操作有跨进程锁，轮换凭据先原子保存再获取启动凭据。请求沿用客户端保存的网络设置（缺省系统代理），不会记录完整认证响应、令牌或启动命令。
 
 客户端直接导入即可使用认证模式，无需手动修改参数。旧条目及自定义命令不自动改写，可在启动设置里按策略生成，退出 Steam 后保存，AppID 和图片保留。需要官方启动器时直接回 Epic 客户端启动。
 
@@ -56,7 +56,7 @@ PowerShell 直接运行只能验证启动和进程识别；Steam 会话是否正
 - `--exit-grace 5s`：同名游戏进程全部消失后继续等待五秒，避免入口与游戏程序交接时过早退出。
 - Ctrl+C 只结束桥接，不停止游戏或 Epic。Steam 的“停止”行为不由本实验保证。
 
-诊断日志：`%AppData%\game-to-steam\bridge\logs\session-*.log`，同时输出到控制台。只记录游戏标识、路径、PID、父 PID 和生命周期，不读取或记录游戏命令行、认证令牌。日志包含个人路径，分享前请检查。
+诊断日志：`%AppData%\Game2Steam\bridge\logs\session-*.log`，同时输出到控制台。只记录游戏标识、路径、PID、父 PID 和生命周期，不读取或记录游戏命令行、认证令牌。日志包含个人路径，分享前请检查。
 
 ## 启动方式对照实验
 

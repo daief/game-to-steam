@@ -125,7 +125,7 @@ Remove-Item Env:GAME_TO_STEAM_PREVIEW_DIR
 
 ## 数据与恢复
 
-应用设置和游戏关联保存在 `%AppData%\game-to-steam\state.json`，按 Steam 账号隔离。图片缓存位于同目录的 `cache`。API Key 单独保存在 Windows 凭据管理器的 `game-to-steam/SteamGridDB` 项中，不写入 JSON、日志或仓库。
+应用设置和游戏关联保存在 `%AppData%\Game2Steam\state.json`，按 Steam 账号隔离。图片缓存位于同目录的 `cache`。启动时自动从旧 `%AppData%\game-to-steam` 迁移；同名业务文件冲突时停止迁移并报错，避免覆盖。已有窗口状态优先保留，旧窗口状态另存为 `window-state.legacy.json`。API Key 单独保存在 Windows 凭据管理器的 `game-to-steam/SteamGridDB` 项中，不写入 JSON、日志或仓库。
 
 Steam 写操作前检查 `steam.exe` 已退出并再次确认目标账号。无法解析 Steam 文件、账号不明确、检测到外部修改或权限错误时停止写入。不会自动退出 Steam，也不会操作其他账号。
 

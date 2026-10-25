@@ -18,7 +18,7 @@ import (
 )
 
 // Version falls back for plain go builds; MyGo packages supply their version.
-var Version = "0.2.1"
+var Version = "0.2.2"
 
 type app struct {
 	epicAuthOpen, epicForgetOpen bool

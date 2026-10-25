@@ -740,11 +740,7 @@ func (s *Service) FillArtwork(ctx context.Context, id, key string) ([]model.Resu
 }
 
 func DataDir() (string, error) {
-	dir, e := os.UserConfigDir()
-	if e != nil {
-		return "", e
-	}
-	return filepath.Join(dir, "game-to-steam"), nil
+	return storage.DataDir()
 }
 
 // ArtworkStatus is a read-only snapshot of files matching Steam's artwork names.

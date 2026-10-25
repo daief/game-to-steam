@@ -19,6 +19,7 @@ import (
 	"game-to-steam/internal/epic"
 	"game-to-steam/internal/epicauth"
 	"game-to-steam/internal/model"
+	"game-to-steam/internal/storage"
 	"game-to-steam/internal/system"
 )
 
@@ -52,11 +53,10 @@ func run() error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	base, err := os.UserConfigDir()
+	appDir, err := storage.DataDir()
 	if err != nil {
 		return err
 	}
-	appDir := filepath.Join(base, "game-to-steam")
 	store := epicauth.Store{Dir: filepath.Join(appDir, "bridge", "auth")}
 	actions := 0
 	for _, v := range []bool{*login, *status, *forget} {
@@ -110,7 +110,7 @@ func run() error {
 			return fmt.Errorf("跟踪 EXE 不存在或不是文件: %s", *watch)
 		}
 	}
-	logDir := filepath.Join(base, "game-to-steam", "bridge", "logs")
+	logDir := filepath.Join(appDir, "bridge", "logs")
 	if err := os.MkdirAll(logDir, 0700); err != nil {
 		return err
 	}
