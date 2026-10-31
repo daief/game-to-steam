@@ -18,7 +18,7 @@ func TestEpicFiltersAndVisibleSelection(t *testing.T) {
 	if games := a.visibleEpicGames(); len(games) != 1 || games[0].ID != "one" {
 		t.Fatal(games)
 	}
-	if err := tt.Click("全选可见"); err != nil {
+	if err := tt.Click("选择当前列表"); err != nil {
 		t.Fatal(err)
 	}
 	if !a.selectedGames["one"] || a.selectedGames["two"] {
@@ -83,7 +83,7 @@ func TestEpicSingleImportDoesNotIncludeOtherSelections(t *testing.T) {
 	a.snapshot.Shortcuts = []model.Shortcut{{AppID: 8, Name: "Beta", Exe: "other.exe"}}
 	a.selectedGames["one"] = true
 	a.importOne(a.snapshot.Games[1])
-	if !a.adoptOpen || len(a.imports) != 1 || a.imports[0].Game.ID != "two" {
+	if !a.importOpen || len(a.imports) != 1 || a.imports[0].Game.ID != "two" {
 		t.Fatal("single import consumed batch selection", a.imports)
 	}
 }

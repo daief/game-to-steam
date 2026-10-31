@@ -95,22 +95,33 @@ func launcherFromCommand(command string) string {
 	return path
 }
 
-func RequireSteamStopped() error {
+func SteamRunning() (bool, error) {
 	h, e := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if e != nil {
-		return fmt.Errorf("无法检查 Steam 进程: %w", e)
+		return false, fmt.Errorf("无法检查 Steam 进程: %w", e)
 	}
 	defer windows.CloseHandle(h)
 	entry := windows.ProcessEntry32{Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{}))}
 	e = windows.Process32First(h, &entry)
 	for e == nil {
 		if strings.EqualFold(windows.UTF16ToString(entry.ExeFile[:]), "steam.exe") {
-			return fmt.Errorf("Steam 正在运行。请在 Steam 菜单中选择退出，退出后重试")
+			return true, nil
 		}
 		e = windows.Process32Next(h, &entry)
 	}
 	if !errors.Is(e, windows.ERROR_NO_MORE_FILES) {
-		return fmt.Errorf("无法完成进程检查: %w", e)
+		return false, fmt.Errorf("无法完成进程检查: %w", e)
+	}
+	return false, nil
+}
+
+func RequireSteamStopped() error {
+	running, err := SteamRunning()
+	if err != nil {
+		return err
+	}
+	if running {
+		return fmt.Errorf("Steam 正在运行。请在 Steam 菜单中选择退出，退出后重试")
 	}
 	return nil
 }

@@ -17,6 +17,23 @@ import (
 	"game-to-steam/internal/storage"
 )
 
+func TestSaveSettingsRejectsRunningSteam(t *testing.T) {
+	s, _ := fixture(t)
+	blocked := errors.New("Steam running")
+	s.Preflight = func() error { return blocked }
+	settings := s.State.Settings
+	settings.SteamPath = "changed"
+	if err := s.SaveSettings(settings); !errors.Is(err, blocked) {
+		t.Fatalf("expected process check failure, got %v", err)
+	}
+	if s.State.Settings.SteamPath == settings.SteamPath {
+		t.Fatal("blocked save changed settings")
+	}
+	if _, err := os.Stat(s.stateFile.Path); !os.IsNotExist(err) {
+		t.Fatalf("blocked save wrote state: %v", err)
+	}
+}
+
 func fixture(t *testing.T) (*Service, model.Game) {
 	t.Helper()
 	dir := t.TempDir()
@@ -88,7 +105,7 @@ func TestImportIdempotencyAndAdoptionPreservation(t *testing.T) {
 	if !s.State.Accounts[s.Profile.AccountID][g.ID].Adopted {
 		t.Fatal("adoption not recorded")
 	}
-	if e = s.UpdateLaunch(g.ID, false); e != nil {
+	if e = s.UpdateLaunch(g.ID); e != nil {
 		t.Fatal(e)
 	}
 	changed := list(t, s)[0]
@@ -196,11 +213,11 @@ func TestUpdateLaunchAfterInstallationMove(t *testing.T) {
 	if err := storage.Replace(filepath.Join(s.State.Settings.EpicManifestPath, "game.item"), manifest); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.UpdateLaunch(g.ID, false); err != nil {
+	if err := s.UpdateLaunch(g.ID); err != nil {
 		t.Fatal(err)
 	}
 	sc := list(t, s)[0]
-	if sc.Exe != `"`+newExe+`"` || sc.Options != "-updated" || sc.AppID != originalID {
+	if sc.Exe != `"`+s.BridgePath+`"` || !strings.Contains(sc.Options, "--launch-mode authenticated") || sc.AppID != originalID || s.State.Accounts[s.Profile.AccountID][g.ID].Game.Executable != newExe || s.State.Accounts[s.Profile.AccountID][g.ID].Game.LaunchCommand != "-updated" {
 		t.Fatal(sc)
 	}
 }
@@ -278,7 +295,7 @@ func TestPreviewLaunchDoesNotWriteAndRespectsForce(t *testing.T) {
 	}
 	s.State.Settings.EpicLauncherPath = launcher
 	s.Preflight = func() error { return errors.New("Steam running") }
-	draft, err := s.PreviewLaunch(g.ID, true)
+	draft, err := s.PreviewLaunch(g.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +308,7 @@ func TestPreviewLaunchDoesNotWriteAndRespectsForce(t *testing.T) {
 	if err = s.SaveLaunch(g.ID, draft, original); err == nil {
 		t.Fatal("saved while Steam running")
 	}
-	draft, err = s.PreviewLaunch(g.ID, false)
+	draft, err = s.PreviewLaunch(g.ID)
 	if err != nil || draft.Exe != original.Exe {
 		t.Fatal(draft, err)
 	}

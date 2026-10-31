@@ -5,17 +5,22 @@ import (
 	"fmt"
 	"strings"
 
+	"game-to-steam/internal/bridge"
 	"game-to-steam/internal/model"
 	nativeui "github.com/egoist/mygo/ui"
+	"golang.org/x/sys/windows"
 )
 
 // Each shortcut keeps its draft when the user switches games or detail tabs.
 // original remains the optimistic-concurrency baseline until a successful save.
 type shortcutEditor struct {
-	id             string
-	original       model.Shortcut
-	draft          model.LaunchSettings
-	generatedForce bool
+	id            string
+	original      model.Shortcut
+	draft         model.LaunchSettings
+	advanced      bool
+	gameOptions   string
+	bridgeOptions []string
+	optionsError  error
 }
 
 func (a *app) shortcutManagedID(appID uint32) string {
@@ -47,7 +52,8 @@ func (a *app) shortcutEditorFor(sc model.Shortcut) *shortcutEditor {
 	}
 	id := a.shortcutManagedID(sc.AppID)
 	force := a.snapshot.Managed[id].Game.ForceEpic
-	e := &shortcutEditor{id: id, original: sc, draft: model.LaunchSettings{Exe: sc.Exe, StartDir: sc.StartDir, Options: sc.Options, ForceEpic: force}, generatedForce: force}
+	e := &shortcutEditor{id: id, original: sc, draft: model.LaunchSettings{Exe: sc.Exe, StartDir: sc.StartDir, Options: sc.Options, ForceEpic: force}}
+	e.syncOptions()
 	a.shortcutEditors[sc.AppID] = e
 	return e
 }
@@ -67,20 +73,32 @@ func (a *app) openShortcutArtwork(sc model.Shortcut) {
 	id := a.shortcutManagedID(sc.AppID)
 	if id != "" && a.detailID != id {
 		a.openDetail(id)
+	} else if id != "" && !a.artLoading && !a.artState().loaded && a.key != "" {
+		a.searchArt()
 	}
+}
+
+func shortcutListWidth(width float32) float32 {
+	if width < 1280 {
+		return 280
+	}
+	return 300
 }
 
 func (a *app) shortcutWorkspace(c *nativeui.Context) {
 	t := c.Theme()
-	nativeui.Row(c).WidthPercent(100).Grow(1).Gap(0).Children(func() {
-		nativeui.Column(c).Width(300).HeightPercent(100).Padding(8).Gap(12).Background(studioList).Border(1, t.Border).BorderWidth(0, 1, 0, 0).Children(func() {
-			nativeui.Row(c).WidthPercent(100).AlignItems(nativeui.Center).Children(func() {
+	w, _ := c.Size()
+	listWidth := shortcutListWidth(w)
+	nativeui.Row(c).WidthPercent(100).Grow(1).MinHeight(0).Gap(0).Children(func() {
+		list := nativeui.Column(c.Key("shortcut-list")).Width(listWidth).HeightPercent(100).MinHeight(0).Padding(12).Gap(8).Background(studioList).Border(1, t.Border).BorderWidth(0, 1, 0, 0)
+		list.Children(func() {
+			nativeui.Row(c).WidthPercent(100).Gap(8).AlignItems(nativeui.Center).Children(func() {
 				nativeui.Text(c, "快捷列表").FontSize(14).Bold().Grow(1)
-				badge(c, fmt.Sprintf("%d 款", len(a.snapshot.Shortcuts)), t.Accent)
-				nativeui.Button(c, "↻").Label("刷新").Tooltip("重新扫描快捷方式").Disabled(a.busy).OnClick(a.refresh)
+				nativeui.Text(c, fmt.Sprintf("%d", len(a.snapshot.Shortcuts))).FontSize(12).TextColor(t.TextMuted)
+				nativeui.Button(c, "").Label("刷新").Size(30, 30).Padding(6).Disabled(a.busy).OnClick(a.refresh).Children(func() { nativeui.Icon(c, refreshIcon).Size(16, 16) })
 			})
 			search := nativeui.TextInput(c.Key("shortcut-search"), &a.query).Label("搜索游戏").Placeholder("搜索快捷方式… Ctrl+F").WidthPercent(100).Disabled(a.busy)
-			if !a.busy && !a.deleteOpen && !a.launchOpen {
+			if !a.busy && !a.deleteOpen && !a.importOpen && !a.adoptOpen && !a.epicAuthOpen && !a.epicForgetOpen {
 				if c.Shortcut(nativeui.Ctrl, nativeui.KeyF) {
 					search.Focus()
 				}
@@ -98,7 +116,7 @@ func (a *app) shortcutWorkspace(c *nativeui.Context) {
 				})
 				nativeui.Button(c, "取消选择").FontSize(11).Disabled(a.busy || a.shortcutSelectionCount() == 0).OnClick(func() { a.selectedShortcuts = map[uint32]bool{} })
 			})
-			nativeui.Scroll(c).WidthPercent(100).Grow(1).Children(func() {
+			nativeui.Scroll(c.Key("shortcut-scroll")).Label("快捷方式列表").WidthPercent(100).Grow(1).MinHeight(0).Children(func() {
 				nativeui.Column(c).WidthPercent(100).Gap(8).Children(func() {
 					n := 0
 					for _, sc := range a.snapshot.Shortcuts {
@@ -118,27 +136,17 @@ func (a *app) shortcutWorkspace(c *nativeui.Context) {
 				nativeui.Button(c, fmt.Sprintf("删除所选 (%d)", a.shortcutSelectionCount())).Height(28).FontSize(11).TextColor(t.Danger).Disabled(a.busy || a.shortcutSelectionCount() == 0).OnClick(a.prepareDelete)
 			})
 		})
-		nativeui.Column(c).Grow(1).MinWidth(0).HeightPercent(100).Padding(20).Gap(10).Children(func() {
+
+		nativeui.Column(c.Key("shortcut-detail")).Grow(1).MinWidth(0).MinHeight(0).HeightPercent(100).Padding(12, 16).Gap(8).Children(func() {
 			sc, ok := a.currentShortcut()
 			if !ok {
 				nativeui.Column(c).Fill().AlignItems(nativeui.Center).Justify(nativeui.Center).Gap(12).Children(func() {
 					nativeui.Text(c, "选择一个游戏").FontSize(22).Bold()
-					nativeui.Text(c, "从左侧快捷列表选择游戏，配置启动方式与封面。").FontSize(12).TextColor(t.TextMuted)
 				})
 				return
 			}
-			nativeui.Column(c).WidthPercent(100).Gap(6).Children(func() {
-				nativeui.Text(c, sc.Name).FontSize(20).Bold().SingleLine().WidthPercent(100).Tooltip(sc.Name)
-				nativeui.Row(c).Gap(8).AlignItems(nativeui.Center).Children(func() {
-					badge(c, fmt.Sprintf("AppID: %d", sc.AppID), t.TextMuted)
-					if a.shortcutManagedID(sc.AppID) != "" {
-						badge(c, "Epic · 已管理", t.Success)
-					} else {
-						badge(c, "外部快捷方式", t.TextMuted)
-					}
-				})
-			})
-			nativeui.Row(c).WidthPercent(100).Gap(20).Border(1, t.Border).BorderWidth(0, 0, 1, 0).Children(func() {
+			nativeui.Row(c).WidthPercent(100).Height(36).Shrink(0).Gap(10).AlignItems(nativeui.Center).Children(func() {
+				nativeui.Text(c, sc.Name).FontSize(20).Bold().SingleLine().Grow(1).MinWidth(0)
 				for i, label := range []string{"启动配置", "封面配置"} {
 					color, border := t.TextMuted, t.Border
 					if a.shortcutTab == i {
@@ -166,7 +174,7 @@ func (a *app) shortcutWorkspace(c *nativeui.Context) {
 					nativeui.Button(c, "加载封面配置").Disabled(a.busy).OnClick(func() { a.openShortcutArtwork(sc) })
 					return
 				}
-				a.artworkEditor(c, true)
+				a.studioArtworkEditor(c)
 			}
 		})
 	})
@@ -178,22 +186,27 @@ func (a *app) shortcutListItem(c *nativeui.Context, sc model.Shortcut) {
 	if a.shortcutChosen && a.shortcutID == sc.AppID {
 		border, fill = t.Accent, t.SurfacePressed
 	}
-	nativeui.Column(c.Key(fmt.Sprintf("shortcut-%d", sc.AppID))).WidthPercent(100).Padding(10).Gap(5).Radius(6).Background(fill).Border(1, border).Children(func() {
+	nativeui.Column(c.Key(fmt.Sprintf("shortcut-%d", sc.AppID))).Label("游戏卡片 "+sc.Name).WidthPercent(100).Padding(10).Gap(5).Background(fill).Border(2, border).BorderWidth(0, 0, 0, 2).Disabled(a.busy).OnClick(func() { a.selectShortcut(sc) }).Children(func() {
 		nativeui.Row(c).WidthPercent(100).Gap(8).AlignItems(nativeui.Center).Children(func() {
 			selected := a.selectedShortcuts[sc.AppID]
 			nativeui.Checkbox(c.Key("delete-select"), &selected, "").Label("勾选 " + sc.Name).Width(18).Disabled(a.busy).OnChange(func() { a.selectedShortcuts[sc.AppID] = selected })
-			nativeui.Box(c).Width(30).Height(30).Border(1, t.Border).Radius(3).Center().Children(func() { nativeui.Icon(c, studioGameIcon).Width(20).Height(20).TextColor(t.Accent) })
-			nativeui.Button(c, sc.Name).Padding(0).Height(20).Label("查看 " + sc.Name).Grow(1).MinWidth(0).SingleLine().Bold().TextAlign(nativeui.Start).Justify(nativeui.Start).Background(fill).BorderWidth(0).Tooltip(sc.Name).Disabled(a.busy).OnClick(func() { a.selectShortcut(sc) })
+			nativeui.Box(c).Width(36).Height(36).Center().Children(func() {
+				if icon := a.shortcutIcons[sc.AppID]; icon != nil {
+					nativeui.Image(c, icon).Size(32, 32).Fit(nativeui.Contain)
+				} else {
+					nativeui.Text(c, string([]rune(sc.Name + "?")[:1])).FontSize(18).TextColor(t.TextMuted)
+				}
+			})
+			nativeui.Button(c, sc.Name).Padding(0).Height(20).Label("查看 " + sc.Name).Grow(1).MinWidth(0).SingleLine().Bold().TextAlign(nativeui.Start).Justify(nativeui.Start).Background(fill).BorderWidth(0).Disabled(a.busy).OnClick(func() { a.selectShortcut(sc) })
 		})
-		nativeui.Text(c, fmt.Sprintf("AppID: %d", sc.AppID)).Font("Cascadia Code").FontSize(11).TextColor(t.TextMuted)
-		nativeui.Text(c, shortcutExecutableName(sc.Exe)).SingleLine().WidthPercent(100).Padding(5, 6).Radius(3).Background(studioList).Font("Cascadia Code").FontSize(11).TextColor(t.TextMuted).Tooltip(sc.Exe).Disabled(a.busy).OnClick(func() { a.selectShortcut(sc) })
+		nativeui.Text(c, fmt.Sprintf("AppID: %d", sc.AppID)).FontSize(11).TextColor(t.TextMuted)
 	})
 }
 
 func (a *app) externalShortcutDetails(c *nativeui.Context, sc model.Shortcut) {
-	nativeui.Scroll(c).WidthPercent(100).Grow(1).Children(func() {
+	nativeui.Scroll(c.Key("launch-scroll")).Label("启动配置表单").WidthPercent(100).Grow(1).MinHeight(0).Children(func() {
 		nativeui.Column(c).WidthPercent(100).Gap(14).Children(func() {
-			section(c, "外部快捷方式", "此条目未由本工具导入或接管，目前可查看和删除。匹配 Epic 游戏后，可在导入时确认接管。", func() {
+			section(c, "外部快捷方式", "只读 · 导入时接管后可编辑", func() {
 				for _, field := range []struct{ label, value string }{{"启动程序", sc.Exe}, {"工作目录", sc.StartDir}, {"启动参数", sc.Options}} {
 					nativeui.Text(c, field.label).TextColor(c.Theme().TextMuted)
 					nativeui.Text(c, field.value).WidthPercent(100).Font("Cascadia Code").FontSize(12)
@@ -203,79 +216,115 @@ func (a *app) externalShortcutDetails(c *nativeui.Context, sc model.Shortcut) {
 	})
 }
 
+func (e *shortcutEditor) syncOptions() {
+	e.gameOptions, e.bridgeOptions, e.optionsError = e.draft.Options, nil, nil
+	if bridge.ShortcutGameID(model.Shortcut{Exe: e.draft.Exe, Options: e.draft.Options}) == "" {
+		return
+	}
+	args, err := windows.DecomposeCommandLine("bridge " + e.draft.Options)
+	if err != nil {
+		e.optionsError = err
+		return
+	}
+	args = args[1:]
+	for i, arg := range args {
+		if arg == "--" {
+			e.bridgeOptions = args[:i]
+			e.gameOptions = windows.ComposeCommandLine(args[i+1:])
+			return
+		}
+	}
+	e.bridgeOptions = args
+	e.gameOptions = ""
+}
+
+func (e *shortcutEditor) updateGameOptions() {
+	e.optionsError = nil
+	if e.bridgeOptions == nil {
+		e.draft.Options = e.gameOptions
+		return
+	}
+	args, err := windows.DecomposeCommandLine("game " + e.gameOptions)
+	if err != nil {
+		e.optionsError = err
+		return
+	}
+	full := append([]string{}, e.bridgeOptions...)
+	if len(args) > 1 {
+		full = append(full, "--")
+		full = append(full, args[1:]...)
+	}
+	e.draft.Options = windows.ComposeCommandLine(full)
+}
+
 func (a *app) shortcutLaunchView(c *nativeui.Context, sc model.Shortcut) {
 	e := a.shortcutEditorFor(sc)
-	pending := e.generatedForce != e.draft.ForceEpic
-	nativeui.Scroll(c).WidthPercent(100).Grow(1).Children(func() {
-		nativeui.Column(c).WidthPercent(100).Gap(20).Children(func() {
-			studioPanel(c, "基础启动策略", "编辑当前 Steam 快捷方式，保留 AppID、名称、图片与标签。", func() {
-				nativeui.Text(c, "选择启动策略").FontSize(12).TextColor(c.Theme().TextMuted)
-				nativeui.Row(c).WidthPercent(100).Gap(12).Children(func() {
-					for _, force := range []bool{false, true} {
-						border, fill := c.Theme().Border, c.Theme().Surface
-						if e.draft.ForceEpic == force {
-							border, fill = c.Theme().Accent, studioSelected
-						}
-						nativeui.Column(c.Key(fmt.Sprint(force))).Grow(1).MinWidth(0).Height(100).Padding(12).Gap(8).Background(fill).Border(1, border).Radius(6).Disabled(a.busy).OnClick(func() {
-							if !a.busy {
-								e.draft.ForceEpic = force
-							}
-						}).Children(func() {
-							label, desc := "自动判断启动方式", "按游戏清单判断，支持的游戏使用 EXE 直启；需要认证时使用独立桥接。"
-							if force {
-								label, desc = "强制 Epic 独立认证", "通过独立认证桥接直接启动游戏，不启动官方 Epic 客户端。"
-							}
-							value := e.draft.ForceEpic
-							nativeui.Radio(c, &value, force, label).FontSize(12).Disabled(a.busy).OnChange(func() {
-								if !a.busy {
-									e.draft.ForceEpic = value
-								}
-							})
-							nativeui.Text(c, desc).WidthPercent(100).FontSize(12).TextColor(c.Theme().TextMuted)
-						})
-					}
-				})
-				nativeui.Row(c).WidthPercent(100).Gap(10).AlignItems(nativeui.Center).Children(func() {
-					nativeui.Text(c, "生成会替换草稿，请先生成再调整参数。").FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
-					nativeui.Button(c, "按策略生成命令").Disabled(a.busy).OnClick(func() {
-						id, force := e.id, e.draft.ForceEpic
-						a.run("生成启动命令草稿", func(ctx context.Context) (func(), error) {
-							draft, err := a.svc.PreviewLaunch(id, force)
-							return func() {
-								if err == nil {
-									e.draft = draft
-									e.generatedForce = force
-								}
-							}, err
-						})
-					})
-				})
-				for _, field := range []struct {
-					label string
-					value *string
-				}{{"启动程序", &e.draft.Exe}, {"工作目录", &e.draft.StartDir}} {
-					nativeui.Text(c, field.label).FontSize(12).TextColor(c.Theme().TextMuted)
-					nativeui.TextInput(c, field.value).Label(field.label).WidthPercent(100).Font("Cascadia Code").Background(studioList).Disabled(a.busy)
+	nativeui.Scroll(c.Key("launch-scroll")).Label("启动配置表单").WidthPercent(100).Grow(1).MinHeight(0).Children(func() {
+		nativeui.Column(c).WidthPercent(100).Padding(12, 0).Gap(16).Children(func() {
+			nativeui.Column(c).WidthPercent(100).Gap(8).Children(func() {
+				nativeui.Text(c, "游戏参数").FontSize(13).Bold()
+				nativeui.TextArea(c.Key("game-options"), &e.gameOptions).Label("启动参数").Placeholder("例如 -windowed").WidthPercent(100).Height(84).Background(studioList).Disabled(a.busy).OnChange(e.updateGameOptions)
+				if e.optionsError != nil {
+					nativeui.Text(c, e.optionsError.Error()).WidthPercent(100).TextColor(c.Theme().Danger)
 				}
 			})
-			studioPanel(c, "高级命令行与参数预览", "Launch Options · 完整启动参数", func() {
-				nativeui.TextArea(c, &e.draft.Options).Label("启动参数").WidthPercent(100).Height(52).Background(studioList).Font("Cascadia Code").Disabled(a.busy)
-				nativeui.Text(c, "认证桥接的游戏 flag 放在 -- 之后，例如 -- -windowed；裸 EXE 参数直接传给游戏。").FontSize(11).TextColor(c.Theme().TextMuted)
-				nativeui.Text(c, "最终写入 Steam 的命令预览（只读）").FontSize(12).TextColor(c.Theme().TextMuted)
-				nativeui.Box(c).WidthPercent(100).Padding(12).Background(studioList).Border(1, c.Theme().Border).Radius(4).Children(func() {
-					nativeui.Text(c, strings.TrimSpace(e.draft.Exe+" "+e.draft.Options)).WidthPercent(100).Font("Cascadia Code").FontSize(12).TextColor(c.Theme().Accent)
-				})
-			})
-			if pending {
-				nativeui.Text(c, "强制选项已改变，请先按策略生成命令，再调整参数。").FontSize(12).TextColor(c.Theme().Warning)
+			label := "高级设置"
+			if e.advanced {
+				label = "收起高级设置"
 			}
-			nativeui.Text(c, "桥接需先在设置中登录 Epic，不启动官方客户端，也不提供云存档同步。").FontSize(11).TextColor(c.Theme().TextMuted)
+			nativeui.Button(c, label).Height(30).AlignSelf(nativeui.Start).Disabled(a.busy).OnClick(func() { e.advanced = !e.advanced })
+			if e.advanced {
+				nativeui.Column(c).WidthPercent(100).Gap(8).Padding(12, 0).Border(1, c.Theme().Border).BorderWidth(1, 0, 0, 0).Children(func() {
+					nativeui.Row(c).WidthPercent(100).Gap(12).AlignItems(nativeui.Center).Children(func() {
+						nativeui.Button(c, "重置").Disabled(a.busy).OnClick(func() {
+							id := e.id
+							a.run("生成启动命令草稿", func(ctx context.Context) (func(), error) {
+								draft, err := a.svc.PreviewLaunch(id)
+								return func() {
+									if err == nil {
+										e.draft = draft
+										e.syncOptions()
+									}
+								}, err
+							})
+						})
+					})
+					for _, field := range []struct {
+						label string
+						value *string
+					}{{"启动程序", &e.draft.Exe}, {"工作目录", &e.draft.StartDir}} {
+						nativeui.Row(c).Gap(6).AlignItems(nativeui.Center).Children(func() {
+							nativeui.Text(c, field.label).FontSize(12).TextColor(c.Theme().TextMuted)
+							if field.label == "启动程序" {
+								nativeui.Icon(c, helpIcon).Label("启动程序说明").Size(14, 14).TextColor(c.Theme().TextMuted).Tooltip("通过 bridge 程序可无需打开 Epic 启动器直接进入游戏")
+							}
+						})
+						path := strings.Trim(*field.value, `"`)
+						nativeui.TextInput(c.Key(field.label), &path).Label(field.label + "路径").WidthPercent(100).Background(studioList).Disabled(a.busy).OnChange(func() {
+							if a.busy {
+								return
+							}
+							*field.value = strings.Trim(path, `"`)
+							if strings.TrimSpace(*field.value) == "" {
+								*field.value = ""
+							} else {
+								*field.value = `"` + *field.value + `"`
+							}
+							e.syncOptions()
+						})
+					}
+					nativeui.Text(c, "完整启动参数").FontSize(12).TextColor(c.Theme().TextMuted)
+					nativeui.TextArea(c.Key("raw-options"), &e.draft.Options).Label("完整启动参数编辑").WidthPercent(100).Height(100).Background(studioList).Disabled(a.busy).OnChange(e.syncOptions)
+				})
+			}
 		})
 	})
-	nativeui.Row(c).WidthPercent(100).Gap(10).AlignItems(nativeui.Center).Children(func() {
-		nativeui.Text(c, "保存前请退出 Steam").FontSize(11).TextColor(c.Theme().Warning).Grow(1)
-		nativeui.Button(c, "重置草稿").Disabled(a.busy).OnClick(func() { delete(a.shortcutEditors, sc.AppID) })
-		nativeui.PrimaryButton(c, "保存启动设置").Disabled(a.busy || pending || strings.TrimSpace(e.draft.Exe) == "").OnClick(func() {
+	nativeui.Row(c).WidthPercent(100).Height(48).Shrink(0).Gap(10).AlignItems(nativeui.Center).Border(1, c.Theme().Border).BorderWidth(1, 0, 0, 0).Children(func() {
+		nativeui.Box(c).Grow(1)
+		if e.optionsError != nil || e.draft.Exe != e.original.Exe || e.draft.StartDir != e.original.StartDir || e.draft.Options != e.original.Options {
+			nativeui.Text(c, "未保存").FontSize(11).TextColor(c.Theme().Warning)
+		}
+		nativeui.PrimaryButton(c, "保存启动设置").Disabled(a.busy || e.optionsError != nil || strings.TrimSpace(e.draft.Exe) == "").OnClick(func() {
 			id, draft, original := e.id, e.draft, e.original
 			a.run("保存启动设置", func(ctx context.Context) (func(), error) {
 				if err := a.svc.SaveLaunch(id, draft, original); err != nil {
@@ -286,9 +335,4 @@ func (a *app) shortcutLaunchView(c *nativeui.Context, sc model.Shortcut) {
 			})
 		})
 	})
-}
-
-func shortcutExecutableName(exe string) string {
-	parts := strings.Split(strings.ReplaceAll(strings.Trim(exe, "\""), "\\", "/"), "/")
-	return parts[len(parts)-1]
 }

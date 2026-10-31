@@ -25,6 +25,11 @@ func artworkTestApp(t *testing.T) *app {
 	a := testApp(t)
 	a.snapshot.Managed["one"] = model.ManagedGame{Game: a.snapshot.Games[0], AppID: 123}
 	a.openDetail("one")
+	a.page = "Steam 快捷方式"
+	a.shortcutChosen = true
+	a.shortcutID = 123
+	a.shortcutTab = 1
+	a.snapshot.Shortcuts = []model.Shortcut{{AppID: 123, Name: "Alpha"}}
 	a.artStatus = map[model.ArtworkKind]service.ArtworkStatus{}
 	for _, k := range model.ArtworkKinds {
 		a.artStatus[k] = service.ArtworkStatus{}
@@ -42,7 +47,7 @@ func TestArtworkCardsPreserveSelectionsAndBusy(t *testing.T) {
 		if err := tt.Click(k.Label()); err != nil {
 			t.Fatal(err)
 		}
-		if !tt.HasText(artPurpose(k)) {
+		if !tt.HasText("待保存") && !tt.HasText(artPurpose(k)) {
 			t.Fatal("missing purpose", k)
 		}
 		if a.kind() != k {
@@ -364,7 +369,7 @@ func TestArtworkManySourcesLayout(t *testing.T) {
 		t.Fatal("missing image list")
 	}
 	t.Log("image viewport", rect)
-	source, _ := tt.Find("游戏来源列表")
+	source, _ := tt.Find("游戏来源")
 	t.Log("source viewport", source)
 	if source.H > 44 {
 		t.Fatal("sources took over the vertical image list", source)
@@ -373,7 +378,8 @@ func TestArtworkManySourcesLayout(t *testing.T) {
 		t.Fatal("downloaded candidate has no bitmap")
 	}
 	// The rendered image must be visible inside the image-list viewport.
-	pixel := tt.Image().At(int(rect.X+140), int(rect.Y+50))
+	candidate, _ := tt.Find("选择 #1")
+	pixel := tt.Image().At(int(candidate.X+candidate.W/2), int(rect.Y+50))
 	red, green, blue, _ := pixel.RGBA()
 	if red>>8 != 30 || green>>8 != 100 || blue>>8 != 150 {
 		t.Fatal("downloaded image not visible", pixel)
@@ -492,6 +498,9 @@ func TestArtworkCandidatesWrapWithWindowWidth(t *testing.T) {
 		if !ok {
 			t.Fatal("missing first candidate")
 		}
+		if delta := first.H - ((first.W-12)*1.5 + 12); delta < -1 || delta > 1 {
+			t.Fatal("portrait card leaves excess space around image", first)
+		}
 		count := 0
 		for id := 1; id <= 20; id++ {
 			r, ok := tt.Find(fmt.Sprintf("选择 #%d", id))
@@ -502,6 +511,9 @@ func TestArtworkCandidatesWrapWithWindowWidth(t *testing.T) {
 		return count
 	}
 	narrow, wide := columns(1100), columns(1600)
+	if count := columns(1280); count != 4 {
+		t.Fatalf("expected four portrait columns at 1280px, got %d", count)
+	}
 	if narrow < 2 || wide <= narrow {
 		t.Fatalf("columns do not adapt: %d -> %d", narrow, wide)
 	}

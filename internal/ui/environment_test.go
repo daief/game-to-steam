@@ -84,7 +84,6 @@ func TestPreviewArtifact(t *testing.T) {
 	if e = png.Encode(launchFile, editor.Image()); e != nil {
 		t.Fatal(e)
 	}
-	a.launchOpen = false
 	a.page = "设置"
 	a.settings.Network.Mode = "custom"
 	a.settings.Network.ProxyURL = "http://127.0.0.1:7890"

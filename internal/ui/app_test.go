@@ -28,14 +28,18 @@ func TestBusyRejectsOperations(t *testing.T) {
 	}
 }
 
-func TestForceAuthenticationLocalBinding(t *testing.T) {
+func TestImportRequiresBridgeLogin(t *testing.T) {
 	a := testApp(t)
+	a.importOne(a.snapshot.Games[0])
 	tt := nativeui.NewTester(a.view, 1100, 780)
-	if err := tt.Click("强制开启 Epic 认证"); err != nil {
+	if !a.importNeedsLogin() {
+		t.Fatal("bridge import did not require login")
+	}
+	if err := tt.Click("前往 Epic 登录"); err != nil {
 		t.Fatal(err)
 	}
-	if !a.force["one"] || a.force["two"] {
-		t.Fatal(a.force)
+	if a.importOpen || !a.epicAuthOpen || a.page != "设置" {
+		t.Fatal("login action did not open settings")
 	}
 }
 
@@ -83,7 +87,7 @@ func TestSearchAndVisibleSelection(t *testing.T) {
 		t.Fatal(e)
 	}
 	tt.Type("Alpha")
-	if e := tt.Click("全选可见"); e != nil {
+	if e := tt.Click("选择当前列表"); e != nil {
 		t.Fatal(e)
 	}
 	if !a.selectedGames["one"] || a.selectedGames["two"] {
@@ -123,10 +127,14 @@ func TestDeleteConfirmationDefaultsAndCancel(t *testing.T) {
 }
 func TestAdoptionRequiresConfirmation(t *testing.T) {
 	a := testApp(t)
+	a.snapshot.EpicAuth.State = "ready"
 	a.snapshot.Shortcuts = []model.Shortcut{{AppID: 5, Name: "Alpha", Exe: "other.exe"}}
 	a.selectedGames["one"] = true
 	tt := nativeui.NewTester(a.view, 1100, 780)
 	if e := tt.Click("导入所选 (1)"); e != nil {
+		t.Fatal(e)
+	}
+	if e := tt.Click("确认导入"); e != nil {
 		t.Fatal(e)
 	}
 	if !a.adoptOpen || a.imports[0].AdoptID != 0 {
@@ -140,36 +148,28 @@ func TestAdoptionRequiresConfirmation(t *testing.T) {
 	}
 }
 
-func TestLaunchEditorLoadsActualCommandAndKeepsCancelledChangesLocal(t *testing.T) {
+func TestLaunchEditorLoadsActualCommandAndKeepsChangesLocal(t *testing.T) {
 	a := testApp(t)
 	a.snapshot.Managed["one"] = model.ManagedGame{Game: model.Game{ID: "one", Name: "Alpha"}, AppID: 1}
-	a.snapshot.Shortcuts[0] = model.Shortcut{AppID: 1, Name: "Custom name", Exe: `"C:\custom.exe"`, StartDir: `"C:\"`, Options: "--original"}
+	a.snapshot.Shortcuts[0] = model.Shortcut{AppID: 1, Name: "Custom name", Exe: `"C:\custom.exe"`, Options: "--original"}
 	a.openLaunch("one")
 	tt := nativeui.NewTester(a.view, 1100, 780)
-	if !tt.HasText("桥接需先在设置中登录 Epic，不启动官方客户端，也不提供云存档同步。") {
-		t.Fatal("missing authentication/cloud-save guidance")
-	}
-	if a.launchDraft.Options != "--original" || a.launchDraft.Exe != `"C:\custom.exe"` {
+	e := a.shortcutEditors[1]
+	if e.draft.Options != "--original" || e.draft.Exe != `"C:\custom.exe"` {
 		t.Fatal("editor did not load Steam fields")
 	}
 	if err := tt.Click("启动参数"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Type(" --added")
-	if !strings.Contains(a.launchDraft.Options, "--added") {
-		t.Fatal(a.launchDraft.Options)
+	if !strings.Contains(e.draft.Options, "--added") {
+		t.Fatal("draft was not edited")
 	}
-	if err := tt.Click("强制开启 Epic 认证（当前快捷方式）"); err != nil {
-		t.Fatal(err)
+	if tt.HasText("强制 Epic 认证") || tt.HasText("自动判断") {
+		t.Fatal("obsolete launch choices remain")
 	}
-	if !tt.HasText("强制选项已改变，请先按策略生成命令，再调整参数。") {
-		t.Fatal("missing generation guidance")
-	}
-	if err := tt.Click("取消编辑"); err != nil {
-		t.Fatal(err)
-	}
-	if a.launchOpen || a.snapshot.Shortcuts[0].Options != "--original" {
-		t.Fatal("cancel changed shortcut")
+	if a.snapshot.Shortcuts[0].Options != "--original" {
+		t.Fatal("draft changed saved shortcut")
 	}
 }
 
@@ -188,13 +188,13 @@ func TestNetworkSettingsModeSelection(t *testing.T) {
 	if a.settings.Network.Mode != "direct" {
 		t.Fatal(a.settings.Network)
 	}
-	if e := tt.Click("指定自定义代理"); e != nil {
+	if e := tt.Click("自定义代理"); e != nil {
 		t.Fatal(e)
 	}
 	if a.settings.Network.Mode != "custom" || a.settings.Network.ProxyURL != "http://127.0.0.1:7890" {
 		t.Fatal("mode switch lost proxy draft", a.settings.Network)
 	}
-	if e := tt.Click("跟随系统代理"); e != nil {
+	if e := tt.Click("系统代理"); e != nil {
 		t.Fatal(e)
 	}
 	if a.settings.Network.Mode != "system" {
@@ -218,6 +218,21 @@ func TestEpicLoginDialogClearsCodeOnCancel(t *testing.T) {
 	}
 	if a.epicAuthOpen || a.epicAuthCode != "" {
 		t.Fatal("auth draft not cleared")
+	}
+}
+
+func TestEpicLoginDialogOnlyShowsRelevantErrors(t *testing.T) {
+	a := testApp(t)
+	a.epicAuthOpen = true
+	a.status = "刷新游戏与 Steam 快捷方式：完成"
+	tt := nativeui.NewTester(a.view, 980, 600)
+	if tt.HasText("使用已保存的代理设置") {
+		t.Fatal("redundant proxy explanation")
+	}
+	a.status = "Epic 独立认证失败：授权码已过期"
+	tt.Frame()
+	if !tt.HasText(a.status) {
+		t.Fatal("login failure hidden")
 	}
 }
 

@@ -2,17 +2,17 @@ package ui
 
 import nativeui "github.com/egoist/mygo/ui"
 
-// Midnight Gaming Fluent tokens shared by every native page and dialog.
+// Shared workbench palette for native pages and dialogs.
 var midnightTheme = func() *nativeui.Theme {
 	t := nativeui.DarkTheme()
-	t.Background = nativeui.Hex("#0C131F")
-	t.Surface = nativeui.Hex("#19202C")
+	t.Background = nativeui.Hex("#171C24")
+	t.Surface = nativeui.Hex("#222A35")
 	t.SurfaceHover = nativeui.Hex("#232A37")
 	t.SurfacePressed = nativeui.Hex("#203147")
-	t.Border = nativeui.Hex("#3E484E")
-	t.Text = nativeui.Hex("#DCE2F4")
+	t.Border = nativeui.Hex("#394553")
+	t.Text = nativeui.Hex("#E7EDF4")
 	t.TextMuted = nativeui.Hex("#9BA6B2")
-	t.Accent = nativeui.Hex("#67C9F5")
+	t.Accent = nativeui.Hex("#78BCEA")
 	t.AccentHover = nativeui.Hex("#93DEFF")
 	t.AccentPressed = nativeui.Hex("#45B6EB")
 	t.AccentText = nativeui.Hex("#09101A")
@@ -26,18 +26,18 @@ var midnightTheme = func() *nativeui.Theme {
 	return t
 }()
 
-var railColor = nativeui.Hex("#151C28")
+var railColor = nativeui.Hex("#1D242E")
 
 func badge(c *nativeui.Context, label string, color nativeui.Color) {
-	nativeui.Box(c).Padding(4, 8).Radius(4).Background(railColor).Children(func() {
+	nativeui.Row(c).AlignSelf(nativeui.Center).AlignItems(nativeui.Center).Justify(nativeui.Center).Padding(4, 8).Radius(4).Background(railColor).Children(func() {
 		nativeui.Text(c, label).FontSize(11).TextColor(color)
 	})
 }
 
 func section(c *nativeui.Context, title, description string, content func()) {
-	panel := nativeui.Column(c).WidthPercent(100).Padding(16).Gap(8).Radius(6).Background(c.Theme().Surface).Border(1, c.Theme().Border)
-	if title == "Epic 独立认证 (DPAPI)" || title == "SteamGridDB 封面服务" {
-		panel.MinHeight(214)
+	panel := nativeui.Column(c).Label(title+"分组").WidthPercent(100).Padding(16).Gap(8).Radius(6).Background(c.Theme().Surface).Border(1, c.Theme().Border)
+	if title == "Epic 认证" || title == "SteamGridDB 封面服务" {
+		panel.HeightPercent(100)
 	}
 	panel.Children(func() {
 		nativeui.Row(c).WidthPercent(100).Gap(10).AlignItems(nativeui.Center).Children(func() {
@@ -50,3 +50,9 @@ func section(c *nativeui.Context, title, description string, content func()) {
 		content()
 	})
 }
+
+func dialogWidth(c *nativeui.Context) float32 { w, _ := c.Size(); return min(w-96, 640) }
+
+var refreshIcon = nativeui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"/></svg>`))
+
+var helpIcon = nativeui.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-1 .6-1.5 1-1.5 2v.5M12 17h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`))

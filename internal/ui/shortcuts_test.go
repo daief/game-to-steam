@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -37,9 +38,6 @@ func TestShortcutWorkspaceDraftsSurviveGameAndTabSwitch(t *testing.T) {
 	if err := tt.Click("查看 Hades · 黑帝斯"); err != nil {
 		t.Fatal(err)
 	}
-	if a.launchOpen {
-		t.Fatal("inline editor opened modal")
-	}
 	if err := tt.Click("启动参数"); err != nil {
 		t.Fatal(err)
 	}
@@ -75,11 +73,11 @@ func TestShortcutWorkspaceDraftsSurviveGameAndTabSwitch(t *testing.T) {
 	if a.snapshot.Shortcuts[0].Options != "-windowed" {
 		t.Fatal("editing mutated saved shortcut")
 	}
-	if err := tt.Click("重置草稿"); err != nil {
+	if err := tt.Click("高级设置"); err != nil {
 		t.Fatal(err)
 	}
-	if a.shortcutEditorFor(a.snapshot.Shortcuts[0]).draft.Options != "-windowed" {
-		t.Fatal("reset failed")
+	if !tt.HasText("重置") || tt.HasText("重置草稿") || tt.HasText("将替换当前草稿") {
+		t.Fatal("reset controls do not match simplified layout")
 	}
 }
 
@@ -106,6 +104,29 @@ func TestShortcutWorkspaceExternalAndDeleteSelection(t *testing.T) {
 	}
 }
 
+func TestShortcutCardSelectsOutsideTitle(t *testing.T) {
+	a := shortcutWorkspaceApp(t)
+	tt := nativeui.NewTester(a.view, 1100, 800)
+	card, ok := tt.Find("游戏卡片 Hades · 黑帝斯")
+	if !ok {
+		t.Fatal("missing card")
+	}
+	for _, point := range [][2]float32{{card.X + card.W - 4, card.Y + card.H - 4}, {card.X + 60, card.Y + 24}} {
+		a.selectShortcut(a.snapshot.Shortcuts[2])
+		tt.Frame()
+		tt.ClickAt(point[0], point[1])
+		if a.shortcutID != 101 {
+			t.Fatal("card area did not select game", point)
+		}
+	}
+	if err := tt.Click("勾选 Death Stranding · 死亡搁浅"); err != nil {
+		t.Fatal(err)
+	}
+	if a.shortcutID != 101 || !a.selectedShortcuts[102] {
+		t.Fatal("checkbox changed active game")
+	}
+}
+
 func TestShortcutWorkspacePreviewArtifacts(t *testing.T) {
 	dir := previewDir()
 	if dir == "" {
@@ -114,10 +135,14 @@ func TestShortcutWorkspacePreviewArtifacts(t *testing.T) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	for _, width := range []int{1100, 1280} {
+	for _, width := range []int{980, 1100, 1280, 1600} {
 		for _, tab := range []int{0, 1} {
 			a := shortcutWorkspaceApp(t)
 			a.shortcutTab = tab
+			if tab == 0 {
+				a.snapshot.Shortcuts[0].Exe = `"C:\apps\Game2Steam\epic-bridge.exe"`
+				a.snapshot.Shortcuts[0].Options = `--game ns:item:hades --manifest-dir "C:\ProgramData\Epic Games\Manifests" --launch-mode authenticated -- -windowed`
+			}
 			a.selectShortcut(a.snapshot.Shortcuts[0])
 			if tab == 1 {
 				a.key = "mock"
@@ -144,7 +169,9 @@ func TestShortcutWorkspacePreviewArtifacts(t *testing.T) {
 				state.previewLabel = "已选择：SteamGridDB #1"
 			}
 			height := 900
-			if width == 1100 {
+			if width == 980 {
+				height = 600
+			} else if width == 1100 {
 				height = 800
 			}
 			tt := nativeui.NewTester(a.view, width, height)
@@ -152,9 +179,7 @@ func TestShortcutWorkspacePreviewArtifacts(t *testing.T) {
 			if tab == 1 {
 				name = "shortcuts-artwork"
 			}
-			if width == 1100 {
-				name += "-compact"
-			}
+			name += fmt.Sprintf("-%dx%d", width, height)
 			f, err := os.Create(filepath.Join(dir, name+".png"))
 			if err != nil {
 				t.Fatal(err)

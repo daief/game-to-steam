@@ -38,9 +38,16 @@ func Validate(s model.NetworkSettings) error {
 	return fmt.Errorf("未知网络模式")
 }
 func parseProxy(raw string) (*url.URL, error) {
+	if !strings.Contains(raw, "://") {
+		host, port, err := net.SplitHostPort(raw)
+		if err != nil || net.ParseIP(host) == nil || port == "" {
+			return nil, fmt.Errorf("代理地址格式不正确，例如 127.0.0.1:7890")
+		}
+		raw = "http://" + raw
+	}
 	u, e := url.Parse(raw)
 	if e != nil || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-		return nil, fmt.Errorf("代理地址格式不正确，例如 http://127.0.0.1:7890")
+		return nil, fmt.Errorf("代理地址格式不正确，例如 127.0.0.1:7890")
 	}
 	switch u.Scheme {
 	case "http", "https", "socks5", "socks5h":

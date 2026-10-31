@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"game-to-steam/internal/model"
@@ -27,7 +28,7 @@ func TestModesAndCustomProxyRouting(t *testing.T) {
 		w.WriteHeader(204)
 	}))
 	defer proxy.Close()
-	transport, e := Transport(model.NetworkSettings{Mode: Custom, ProxyURL: proxy.URL})
+	transport, e := Transport(model.NetworkSettings{Mode: Custom, ProxyURL: strings.TrimPrefix(proxy.URL, "http://")})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -40,12 +41,12 @@ func TestModesAndCustomProxyRouting(t *testing.T) {
 	if hits != 1 || response.StatusCode != 204 {
 		t.Fatal("proxy not used")
 	}
-	for _, raw := range []string{"", "127.0.0.1:7890", "ftp://host:1", "http://user:password@host:1", "http://host:99999", "http://host/path"} {
+	for _, raw := range []string{"", "127.0.0.1", "127.0.0.1:0", "127.0.0.1:99999", "user@host:7890", "ftp://host:1", "http://user:password@host:1", "http://host:99999", "http://host/path"} {
 		if Validate(model.NetworkSettings{Mode: Custom, ProxyURL: raw}) == nil {
 			t.Fatal("accepted", raw)
 		}
 	}
-	for _, raw := range []string{"http://127.0.0.1:7890", "https://proxy:443", "socks5://127.0.0.1:1080", "socks5h://[::1]:1080"} {
+	for _, raw := range []string{"127.0.0.1:7890", "[::1]:7890", "http://127.0.0.1:7890", "https://proxy:443", "socks5://127.0.0.1:1080", "socks5h://[::1]:1080"} {
 		if e := Validate(model.NetworkSettings{Mode: Custom, ProxyURL: raw}); e != nil {
 			t.Fatal(raw, e)
 		}

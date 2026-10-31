@@ -25,7 +25,7 @@ func bridgeLauncher(t *testing.T, s *Service) string {
 }
 
 func TestEpicLaunchPolicyUsesBridge(t *testing.T) {
-	for _, mode := range []string{"managed", "dlc", "auth", "ownership", "forced"} {
+	for _, mode := range []string{"plain", "managed", "dlc", "auth", "ownership", "forced"} {
 		t.Run(mode, func(t *testing.T) {
 			s, g := fixture(t)
 			bridgeLauncher(t, s)
@@ -87,7 +87,7 @@ func TestLegacyEpicModeIsIgnored(t *testing.T) {
 	}
 }
 
-func TestMissingBridgeFailsEpicButNotDirect(t *testing.T) {
+func TestMissingBridgeFailsAllGames(t *testing.T) {
 	s, g := fixture(t)
 	bridgeLauncher(t, s)
 	s.BridgePath = filepath.Join(t.TempDir(), "missing.exe")
@@ -98,7 +98,7 @@ func TestMissingBridgeFailsEpicButNotDirect(t *testing.T) {
 	}
 	g.RequiresAuth = false
 	results, err = s.Import(context.Background(), []ImportRequest{{Game: g}}, "")
-	if err != nil || results[0].Failed || list(t, s)[0].Exe != `"`+g.Executable+`"` {
+	if err != nil || !results[0].Failed || len(list(t, s)) != 0 {
 		t.Fatal(results, err)
 	}
 }
@@ -131,7 +131,7 @@ func TestBridgeGenerationPreservesExistingCommandsUntilSaved(t *testing.T) {
 	if !reflect.DeepEqual(list(t, s)[0], original) {
 		t.Fatal("repeat import rewrote original")
 	}
-	draft, err := s.PreviewLaunch(g.ID, false)
+	draft, err := s.PreviewLaunch(g.ID)
 	if err != nil || draft.Exe != `"`+s.BridgePath+`"` {
 		t.Fatal(draft, err)
 	}
@@ -155,23 +155,23 @@ func TestBridgeGenerationPreservesExistingCommandsUntilSaved(t *testing.T) {
 	}
 }
 
-func TestForceBridgeAndRevertToDirect(t *testing.T) {
+func TestRegeneratedBridgePreservesIdentity(t *testing.T) {
 	s, g := fixture(t)
 	bridgeLauncher(t, s)
 	if _, err := s.Import(context.Background(), []ImportRequest{{Game: g}}, ""); err != nil {
 		t.Fatal(err)
 	}
 	original := list(t, s)[0]
-	if err := s.UpdateLaunch(g.ID, true); err != nil {
+	if err := s.UpdateLaunch(g.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := list(t, s)[0]; got.AppID != original.AppID || got.Exe != `"`+s.BridgePath+`"` {
 		t.Fatal(got)
 	}
-	if err := s.UpdateLaunch(g.ID, false); err != nil {
+	if err := s.UpdateLaunch(g.ID); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(list(t, s)[0], original) {
-		t.Fatal("direct command not restored")
+		t.Fatal("regeneration changed bridge command")
 	}
 }

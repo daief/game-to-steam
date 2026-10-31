@@ -76,9 +76,7 @@ func New(dir string) (*Service, error) {
 }
 
 func (s *Service) makeShortcut(g model.Game) (model.Shortcut, error) {
-	if !g.ViaEpic() {
-		return epic.MakeShortcut(g, "")
-	}
+	g.ForceEpic = true
 	return bridge.MakeAuthenticatedShortcut(g, s.BridgePath, s.State.Settings.EpicManifestPath)
 }
 
@@ -200,6 +198,9 @@ func (s *Service) commit(state model.State, changes []storage.Change) error {
 }
 
 func (s *Service) SaveSettings(settings model.Settings) error {
+	if err := s.Preflight(); err != nil {
+		return err
+	}
 	settings = normalizeSettings(settings)
 	if err := network.Validate(settings.Network); err != nil {
 		return err
@@ -210,7 +211,7 @@ func (s *Service) SaveSettings(settings model.Settings) error {
 	if e != nil {
 		return e
 	}
-	_, e = storage.Commit(filepath.Join(s.Dir, "backups"), []storage.Change{{Before: s.stateFile, Data: b}}, nil)
+	_, e = storage.Commit(filepath.Join(s.Dir, "backups"), []storage.Change{{Before: s.stateFile, Data: b}}, s.Preflight)
 	if e != nil {
 		return e
 	}
@@ -470,7 +471,7 @@ func (s *Service) Delete(ids []uint32, cleanup bool) error {
 	return s.commit(state, changes)
 }
 
-func (s *Service) UpdateLaunch(id string, force bool) error {
+func (s *Service) UpdateLaunch(id string) error {
 	if e := s.check(); e != nil {
 		return e
 	}
@@ -511,7 +512,7 @@ func (s *Service) UpdateLaunch(id string, force bool) error {
 	if !currentGame {
 		return fmt.Errorf("游戏已不在 Epic 安装清单中，无法更新启动策略")
 	}
-	m.Game.ForceEpic = force
+	m.Game.ForceEpic = true
 	generated, e := s.makeShortcut(m.Game)
 	if e != nil {
 		return e
@@ -527,7 +528,7 @@ func (s *Service) UpdateLaunch(id string, force bool) error {
 }
 
 // PreviewLaunch only generates a draft. Steam may remain running while previewing.
-func (s *Service) PreviewLaunch(id string, force bool) (model.LaunchSettings, error) {
+func (s *Service) PreviewLaunch(id string) (model.LaunchSettings, error) {
 	var out model.LaunchSettings
 	if _, ok := s.State.Accounts[s.Profile.AccountID][id]; !ok {
 		return out, fmt.Errorf("该游戏尚未由本客户端管理")
@@ -538,12 +539,12 @@ func (s *Service) PreviewLaunch(id string, force bool) (model.LaunchSettings, er
 	}
 	for _, g := range games {
 		if g.ID == id {
-			g.ForceEpic = force
+			g.ForceEpic = true
 			sc, e := s.makeShortcut(g)
 			if e != nil {
 				return out, e
 			}
-			return model.LaunchSettings{ForceEpic: force, Exe: sc.Exe, StartDir: sc.StartDir, Options: sc.Options}, nil
+			return model.LaunchSettings{ForceEpic: true, Exe: sc.Exe, StartDir: sc.StartDir, Options: sc.Options}, nil
 		}
 	}
 	return out, fmt.Errorf("游戏已不在 Epic 安装清单中，可手动编辑现有命令")
