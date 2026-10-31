@@ -53,6 +53,10 @@ func TestPreviewArtifact(t *testing.T) {
 		t.Skip("optional UI preview")
 	}
 	a := testApp(t)
+	a.snapshot.Profile.Name = "已隐藏"
+	a.snapshot.Profile.Root = `C:\Program Files (x86)\Steam`
+	a.steamChecked = true
+	a.svc.Dir = `%AppData%\Game2Steam`
 	a.snapshot.Games = []model.Game{
 		{ID: "alpha", Name: "Hades · 黑帝斯", InstallDir: `D:\Games\Hades`, Executable: `D:\Games\Hades\Hades.exe`},
 		{ID: "beta", Name: "Death Stranding · 死亡搁浅", InstallDir: `D:\Games\DeathStranding`, Managed: true},
@@ -85,6 +89,8 @@ func TestPreviewArtifact(t *testing.T) {
 		t.Fatal(e)
 	}
 	a.page = "设置"
+	a.snapshot.EpicAuth.State = "ready"
+	a.snapshot.EpicAuth.DisplayName = "已隐藏"
 	a.settings.Network.Mode = "custom"
 	a.settings.Network.ProxyURL = "http://127.0.0.1:7890"
 	settingsView := nativeui.NewTester(a.view, 1100, 780)

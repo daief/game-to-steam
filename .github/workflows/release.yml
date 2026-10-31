@@ -77,13 +77,13 @@ jobs:
         run: |
           go tool mygo build -platform windows/amd64
           if ($LASTEXITCODE -ne 0) { throw 'MyGo packaging failed.' }
-          $setup = "build/windows-amd64/Game2Steam Setup $env:APP_VERSION amd64.exe"
+          $setup = "build/windows-amd64/game2steam-setup-$env:APP_VERSION-amd64.exe"
           if (-not (Test-Path -LiteralPath $setup)) { throw 'MyGo did not produce the setup executable.' }
           foreach ($file in @('Game2Steam.exe', 'epic-bridge.exe')) {
             if (-not (Test-Path -LiteralPath "build/windows-amd64/$file")) { throw "Missing packaged file: $file" }
           }
           New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Copy-Item -LiteralPath $setup -Destination "dist/Game2Steam Setup $env:APP_VERSION amd64.exe"
+          Copy-Item -LiteralPath $setup -Destination "dist/game2steam-setup-$env:APP_VERSION-amd64.exe"
 
       - name: Create portable archive and checksums
         run: |
@@ -91,9 +91,7 @@ jobs:
           Compress-Archive -LiteralPath build/windows-amd64/Game2Steam.exe,build/windows-amd64/epic-bridge.exe -DestinationPath $archive
           $checksums = Get-ChildItem dist -File | Where-Object { $_.Extension -in '.exe', '.zip' } | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            # GitHub normalizes spaces to periods in uploaded asset names.
-            $assetName = $_.Name.Replace(' ', '.')
-            "$hash  $assetName"
+            "$hash  $($_.Name)"
           }
           $checksums | Set-Content -LiteralPath dist/SHA256SUMS.txt -Encoding ascii
 
@@ -101,4 +99,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload $env:RELEASE_TAG "dist/Game2Steam Setup $env:APP_VERSION amd64.exe" "dist/Game2Steam-$env:APP_VERSION-windows-amd64.zip" dist/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --clobber
+          gh release upload $env:RELEASE_TAG "dist/game2steam-setup-$env:APP_VERSION-amd64.exe" "dist/Game2Steam-$env:APP_VERSION-windows-amd64.zip" dist/SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --clobber
